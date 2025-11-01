@@ -1,0 +1,48 @@
+# .gitignore for Immutable Credentials Blockchain
+
+# Compiled class files
+*.class
+bin/
+out/
+target/
+
+# Log files
+*.log
+logs/
+
+# Data directories
+data/
+*.db
+*.dat
+
+# Configuration with sensitive information
+config/*_private.properties
+*.key
+*.pem
+
+# IDE specific files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Backup files
+*.backup
+backups/
+
+# Test output
+test-results/
+coverage/

@@ -105,13 +105,6 @@ public class Block {
         return header.getSignature();
     }
     
-    /**
-     * Set signature (called by validator after block creation)
-     */
-    public void setSignature(String signature) {
-        header.setSignature(signature);
-    }
-    
     @Override
     public int hashCode() {
         return Objects.hash(header, credential);

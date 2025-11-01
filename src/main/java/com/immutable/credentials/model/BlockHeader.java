@@ -16,7 +16,7 @@ public class BlockHeader {
     private final String previousHash;
     private final String hash;
     private final String validatorId;
-    private String signature; // Can be set after block creation
+    private String signature;
     
     /**
      * Constructor
@@ -56,13 +56,6 @@ public class BlockHeader {
     
     public String getSignature() {
         return signature;
-    }
-    
-    /*
-     * Setter for signature only
-     */
-    public void setSignature(String signature) {
-        this.signature = signature;
     }
     
     @Override

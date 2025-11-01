@@ -35,6 +35,16 @@ public class Block {
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId);
         this.credential = credential;
     }
+    /**
+     * Copy constructor - creates a copy of an existing block
+     */
+    public Block(Block other) {
+        if (other == null) {
+            throw new IllegalArgumentException("Block to copy cannot be null");
+        }
+        this.header = new BlockHeader(other.header);
+        this.credential = new Credential(other.credential);
+    }
     
     /**
      * Calculate SHA-256 hash of block data

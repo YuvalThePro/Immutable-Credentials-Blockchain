@@ -25,7 +25,7 @@ public class Credential
      */
 
     private final String studentName; 
-    private final Date dateAwarded; 
+    private final Date dateAwarded;
     private final String degree;
     private final String institution;
     private final String studentId;
@@ -66,7 +66,23 @@ public class Credential
     }
 
     
-
+    /**
+        * Copy constructor - Creates a new Credential instance from an existing one
+        * 
+        * @param other The Credential object to copy
+        * @throws IllegalArgumentException if other is null
+        */
+        public Credential(Credential other) {
+           if (other == null) {
+              throw new IllegalArgumentException("Cannot copy from null Credential");
+           }
+           this.studentName = other.studentName;
+           this.dateAwarded = other.dateAwarded != null ? new Date(other.dateAwarded.getTime()) : null;
+           this.degree = other.degree;
+           this.institution = other.institution;
+           this.studentId = other.studentId;
+           this.credentialId = other.credentialId;
+        }
 
 
     /*

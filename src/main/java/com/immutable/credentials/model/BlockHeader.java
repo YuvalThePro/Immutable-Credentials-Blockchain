@@ -30,7 +30,19 @@ public class BlockHeader {
         this.validatorId = validatorId;
         this.signature = null; // Set later by validator
     }
-    
+
+    /**
+        * Copy Constructor
+        */
+        public BlockHeader(BlockHeader other) {
+           this.index = other.index;
+           this.timestamp = other.timestamp;
+           this.previousHash = other.previousHash;
+           this.hash = other.hash;
+           this.validatorId = other.validatorId;
+           this.signature = other.signature;
+        }
+
     /*
      * Getters
      */

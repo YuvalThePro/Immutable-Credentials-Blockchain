@@ -69,7 +69,7 @@ Immutable-Credentials-Blockchain/
 ### Branch Structure
 ```
 main                                    # Production-ready code
-├── develop                             # Integration branch
+├── dev                                 # Integration branch
 ├── feature/sprint-1-core-models       # v0.1.0 - Core Data Structures
 ├── feature/sprint-2-crypto-poa        # v0.2.0 - Cryptography & PoA
 ├── feature/sprint-3-storage           # v0.3.0 - Storage & Persistence
@@ -160,7 +160,7 @@ main                                    # Production-ready code
    ```powershell
    git add .
    git commit -m "Complete Sprint 1: Core Data Structures"
-   git checkout develop
+   git checkout dev
    git merge feature/sprint-1-core-models
    git tag v0.1.0
    ```

@@ -7,16 +7,7 @@ import com.immutable.credentials.model.Credential;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.concurrent.ConcurrentHashMap;
-
-// Blockchain.java
-// Main blockchain data structure
-// Manages the chain of blocks:
-// - addBlock(): Add new block to chain
-// - validateChain(): Verify integrity of entire chain
-// - getBlock(): Retrieve specific block
-// - getLatestBlock(): Get most recent block
-// - searchByStudentId(): Find credentials by student ID
+import java.util.HashMap;
 
 /**
  * Simple in-memory blockchain for immutable credentials.
@@ -128,6 +119,25 @@ public class Blockchain {
 
         return results;
     }
+    
+    /**
+     * Get the number of blocks in the chain.
+     *
+     * @return size of the blockchain
+     */
+    public int size() {
+        return chain.size();
+    }
+    
+    /**
+     * Get a copy of the entire chain.
+     *
+     * @return copy of the blockchain
+     */
+    public ArrayList<Block> getChain() {
+        return new ArrayList<>(chain);
+    }
+    
     /**
      * Validate the entire chain.
      *
@@ -138,7 +148,7 @@ public class Blockchain {
      * @param map mapping from validator id to their public key (required)
      * @return true when chain is valid, false otherwise
      */
-    public boolean validateChain(ConcurrentHashMap<String, PublicKey> map) {
+    public boolean validateChain(HashMap<String, PublicKey> map) {
         if (chain == null || chain.size() == 0) {
             return false;
         }
@@ -180,12 +190,25 @@ public class Blockchain {
                 return false;
             }
 
-            PublicKey pk = map.get(current.getValidatorId());
-            if (pk != null) {
-                String data = current.getHash();
-                if (!CryptoUtils.verifySignature(data, current.getSignature(), pk)) {
-                    return false;
-                }
+            // Validator must be authorized (public key must exist in map)
+            String validatorId = current.getValidatorId();
+            PublicKey pk = map.get(validatorId);
+            if (pk == null) {
+                // Unauthorized validator - reject block
+                return false;
+            }
+            
+            // Signature must exist
+            String signature = current.getSignature();
+            if (signature == null || signature.trim().isEmpty()) {
+                // Missing signature - reject block
+                return false;
+            }
+            
+            // Verify signature
+            if (!CryptoUtils.verifySignature(current.getHash(), signature, pk)) {
+                // Invalid signature - reject block
+                return false;
             }
         }
 

@@ -1,6 +1,7 @@
 package com.immutable.credentials.model;
 
 import com.immutable.credentials.crypto.CryptoUtils;
+import java.security.PublicKey;
 import java.util.Date;
 import java.util.Objects;
 
@@ -10,12 +11,19 @@ import java.util.Objects;
  * Contains: Header (index, timestamp, previousHash, hash, validatorId, signature)
  *           Payload (Credential data)
  */
+/**
+ * Represents a single block in the immutable credentials blockchain.
+ *
+ * <p>Each block contains a header (index, timestamp, previous hash, hash,
+ * validator id and signature) and a payload which is the {@link Credential}.
+ * The block provides helpers to verify its internal hash and signature.
+ */
 public class Block {
-    
-    /*
-     * Fields: header and credential
-     */
+
+    /** Header containing index, timestamps and cryptographic fields. */
     private final BlockHeader header;
+
+    /** Credential payload stored in this block. */
     private final Credential credential;
     
     /**
@@ -47,9 +55,16 @@ public class Block {
     }
     
     /**
-     * Calculate SHA-256 hash of block data
+     * Calculate SHA-256 hash of the block's canonical data.
+     *
+     * @param index block index
+     * @param timestamp block timestamp (ms)
+     * @param previousHash previous block's hash
+     * @param credential credential payload
+     * @param validatorId id of the validator who signed the block
+     * @return hex-encoded SHA-256 of the concatenated data
      */
-    private String calculateHash(int index, long timestamp, String previousHash, 
+    private String calculateHash(int index, long timestamp, String previousHash,
                                  Credential credential, String validatorId) {
         String data = index + timestamp + previousHash + credential.toString() + validatorId;
         return CryptoUtils.applySha256(data);
@@ -58,15 +73,48 @@ public class Block {
     /**
      * Recalculate hash and verify it matches stored hash
      */
+    /**
+     * Recalculate the canonical hash for this block and compare to the stored
+     * header hash.
+     *
+     * @return true if the stored hash matches the recomputed canonical hash
+     */
     public boolean isHashValid() {
         String calculatedHash = calculateHash(
-            header.getIndex(), 
-            header.getTimestamp(), 
-            header.getPreviousHash(), 
-            credential, 
+            header.getIndex(),
+            header.getTimestamp(),
+            header.getPreviousHash(),
+            credential,
             header.getValidatorId()
         );
         return header.getHash().equals(calculatedHash);
+    }
+
+    /**
+     * Verify the block's signature using the provided public key.
+     * <p>
+     * This method recomputes the canonical block data (the same inputs used
+     * when the block hash was created) and verifies the Base64 signature
+     * against that data.
+     *
+     * @param publicKey public key of the validator
+     * @return true when signature is present and valid for the recomputed data
+     */
+    public boolean verifySignature(PublicKey publicKey) {
+        String sig = getSignature();
+        if (publicKey == null || sig == null || sig.trim().isEmpty()) {
+            return false;
+        }
+
+        String data = calculateHash(
+            header.getIndex(),
+            header.getTimestamp(),
+            header.getPreviousHash(),
+            credential,
+            header.getValidatorId()
+        );
+
+        return CryptoUtils.verifySignature(data, sig, publicKey);
     }
     
     /**

@@ -29,20 +29,6 @@ public class Block {
     /**
      * Constructor - creates new block with calculated hash
      */
-    public Block(int index, String previousHash, Credential credential, String validatorId,String signture) {
-        if (credential == null) {
-            throw new IllegalArgumentException("Credential is required");
-        }
-        if (validatorId == null || validatorId.trim().isEmpty()) {
-            throw new IllegalArgumentException("Validator ID is required");
-        }
-        
-        long timestamp = new Date().getTime();
-        String hash = calculateHash(index, timestamp, previousHash, credential, validatorId);
-        
-        this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId,signture);
-        this.credential = credential;
-    }
     public Block(int index, String previousHash, Credential credential, String validatorId) {
         if (credential == null) {
             throw new IllegalArgumentException("Credential is required");

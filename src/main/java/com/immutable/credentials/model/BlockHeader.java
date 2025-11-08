@@ -22,22 +22,13 @@ public class BlockHeader {
      * Constructor
      */
     public BlockHeader(int index, long timestamp, String previousHash, 
-                      String hash, String validatorId, String signture) {
-        this.index = index;
-        this.timestamp = timestamp;
-        this.previousHash = previousHash;
-        this.hash = hash;
-        this.validatorId = validatorId;
-        this.signature = signture;
-    }
-    public BlockHeader(int index, long timestamp, String previousHash, 
                       String hash, String validatorId) {
         this.index = index;
         this.timestamp = timestamp;
         this.previousHash = previousHash;
         this.hash = hash;
         this.validatorId = validatorId;
-        this.signature = null;
+        this.signature = null; // Set later by validator
     }
 
     /**

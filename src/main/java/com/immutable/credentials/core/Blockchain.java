@@ -22,6 +22,7 @@ public class Blockchain {
 
     /** Ordered list of blocks (index 0 is genesis). */
     private ArrayList<Block> chain;
+
     /**
      * Create a new blockchain and initialize it with a genesis block.
      */
@@ -45,7 +46,7 @@ public class Blockchain {
             "GENESIS-CRED-000"
         );
         
-        return new Block(0, "0", genesisCredential, "SYSTEM","GENESIS");
+        return new Block(0, "0", genesisCredential, "SYSTEM");
     }
     
     /**
@@ -212,16 +213,5 @@ public class Blockchain {
         }
 
         return true;
-    }
-
-
-    public boolean credentialIdExists(String credentialId)
-    {
-        for(Block block : chain )
-        {
-            if(block.getCredential().getCredentialId() == credentialId)
-                return true;
-        }
-        return false;
     }
 }

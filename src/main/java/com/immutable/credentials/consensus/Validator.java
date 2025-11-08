@@ -77,18 +77,14 @@ public class Validator {
     }
 
     // Verify a signature using validator's public key
-    public boolean verifySignature(Block block, String signature) {
-        if (this.publicKey == null || signature == null || block == null) {
+    public boolean verifySignature(Block block) {
+        if (this.publicKey == null || block == null) {
             return false;
         }
 
         try {
             // Get block hash
-            String blockHash = block.getHash();
-
-            // Verify using CryptoUtils
-            return CryptoUtils.verifySignature(blockHash, signature, this.publicKey);
-
+            return block.verifySignature(publicKey);
         } catch (Exception e) {
             // Any exception means verification failed
             return false;

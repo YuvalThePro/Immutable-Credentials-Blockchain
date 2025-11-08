@@ -1,13 +1,5 @@
 package com.immutable.credentials.consensus;
 
-// Validator.java
-// Represents an authorized validator in the PoA system
-// Properties:
-// - validatorId: Unique identifier
-// - publicKey: Public key for signature verification
-// - privateKey: Private key for signing blocks (kept secure)
-// - institution: Associated university/institution
-
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SignatureException;

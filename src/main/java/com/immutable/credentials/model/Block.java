@@ -6,12 +6,6 @@ import java.util.Date;
 import java.util.Objects;
 
 /**
- * Block.java
- * Represents a block in the blockchain
- * Contains: Header (index, timestamp, previousHash, hash, validatorId, signature)
- *           Payload (Credential data)
- */
-/**
  * Represents a single block in the immutable credentials blockchain.
  *
  * <p>Each block contains a header (index, timestamp, previous hash, hash,

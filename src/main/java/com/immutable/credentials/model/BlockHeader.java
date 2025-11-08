@@ -19,17 +19,21 @@ public class BlockHeader {
     private String signature;
     
     /**
-     * Constructor
+     * Constructor with signature
      */
     public BlockHeader(int index, long timestamp, String previousHash, 
-                      String hash, String validatorId, String signture) {
+                      String hash, String validatorId, String signature) {
         this.index = index;
         this.timestamp = timestamp;
         this.previousHash = previousHash;
         this.hash = hash;
         this.validatorId = validatorId;
-        this.signature = signture;
+        this.signature = signature;
     }
+    
+    /**
+     * Constructor without signature (signature to be added later)
+     */
     public BlockHeader(int index, long timestamp, String previousHash, 
                       String hash, String validatorId) {
         this.index = index;

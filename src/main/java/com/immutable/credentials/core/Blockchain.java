@@ -215,12 +215,23 @@ public class Blockchain {
     }
 
 
-    public boolean credentialIdExists(String credentialId)
-    {
-        for(Block block : chain )
-        {
-            if(block.getCredential().getCredentialId() == credentialId)
+    /**
+     * Check if a credential ID already exists in the blockchain.
+     * 
+     * @param credentialId the credential ID to check
+     * @return true if the credential ID exists, false otherwise
+     */
+    public boolean credentialIdExists(String credentialId) {
+        if (credentialId == null) {
+            return false;
+        }
+        
+        for (Block block : chain) {
+            if (block.getCredential() != null && 
+                block.getCredential().getCredentialId() != null &&
+                credentialId.equals(block.getCredential().getCredentialId())) {
                 return true;
+            }
         }
         return false;
     }

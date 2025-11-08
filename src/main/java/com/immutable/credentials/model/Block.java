@@ -27,9 +27,9 @@ public class Block {
     private final Credential credential;
     
     /**
-     * Constructor - creates new block with calculated hash
+     * Constructor - creates new block with calculated hash and signature
      */
-    public Block(int index, String previousHash, Credential credential, String validatorId,String signture) {
+    public Block(int index, String previousHash, Credential credential, String validatorId, String signature) {
         if (credential == null) {
             throw new IllegalArgumentException("Credential is required");
         }
@@ -40,9 +40,13 @@ public class Block {
         long timestamp = new Date().getTime();
         String hash = calculateHash(index, timestamp, previousHash, credential, validatorId);
         
-        this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId,signture);
+        this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId, signature);
         this.credential = credential;
     }
+    
+    /**
+     * Constructor - creates new block with calculated hash (signature to be added later)
+     */
     public Block(int index, String previousHash, Credential credential, String validatorId) {
         if (credential == null) {
             throw new IllegalArgumentException("Credential is required");

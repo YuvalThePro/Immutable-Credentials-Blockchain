@@ -132,7 +132,7 @@ public class Validator {
         }
 
         // 5. Check for duplicate credential ID in blockchain
-        if (credential.getCredentialId() != null && !blockchain.credentialIdExists(credential.getCredentialId())) {
+        if (credential.getCredentialId() != null && blockchain.credentialIdExists(credential.getCredentialId())) {
             System.out.println("Validation failed: Credential ID already exists - " + credential.getCredentialId());
             return false;
         }

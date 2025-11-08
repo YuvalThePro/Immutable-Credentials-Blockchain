@@ -88,4 +88,42 @@ public class CryptoUtils {
     public static String keyToString(Key key) {
         return Base64.getEncoder().encodeToString(key.getEncoded());
     }
+
+
+    public static boolean isValidIsraeliId(String id) {
+    if (id == null || id.trim().isEmpty()) {
+        return false;
+    }
+    
+    // Remove any whitespace
+    id = id.trim();
+    
+    // Check if exactly 9 digits
+    if (!id.matches("\\d{9}")) {
+        return false;
+    }
+    
+    // Apply Israeli ID checksum algorithm (Luhn-like)
+    int sum = 0;
+    for (int i = 0; i < 9; i++) {
+        int digit = Character.getNumericValue(id.charAt(i));
+        
+        // Multiply every second digit by 2 (positions 1, 3, 5, 7)
+        if (i % 2 == 1) {
+            digit *= 2;
+            // If result is > 9, sum the digits (e.g., 12 -> 1+2 = 3)
+            if (digit > 9) {
+                digit = (digit / 10) + (digit % 10);
+            }
+        }
+        sum += digit;
+    }
+    
+    // Valid if sum is divisible by 10
+    return sum % 10 == 0;
 }
+
+
+
+}
+

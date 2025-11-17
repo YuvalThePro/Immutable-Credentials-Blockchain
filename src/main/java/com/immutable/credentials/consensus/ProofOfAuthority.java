@@ -53,13 +53,12 @@ public class ProofOfAuthority {
         if(authorizedValidators == null || authorizedValidators.isEmpty())
             return false;
         
-        for(Validator valdiator : authorizedValidators)
-        {
-            if(valdiator.getPublicKey()!= null && valdiator.getPublicKey().equals(validatorPublicKey))
-                {
-                    if(valdiator.isActive())
-                        return true;
+        for (Validator validator : authorizedValidators) {
+            if (validator.getPublicKey() != null && validator.getPublicKey().equals(validatorPublicKey)) {
+                if (validator.isActive()) {
+                    return true;
                 }
+            }
         }
 
         return false;
@@ -266,7 +265,22 @@ public class ProofOfAuthority {
      * @return The Block that achieved consensus, or null if no consensus yet
      */
     public Block getConsensusBlock(int blockIndex) {
-        // TODO: Implementation required
+        if (blockIndex < 0) {
+            return null;
+        }
+
+        if (pendingBlocks == null || !pendingBlocks.containsKey(blockIndex) || pendingBlocks.get(blockIndex) == null) {
+            return null;
+        }
+
+        for (Block block : pendingBlocks.get(blockIndex)) {
+            if (block == null) continue;
+            String blockHash = block.getHash();
+            if (blockHash == null) continue;
+            if (hasConsensus(blockIndex, blockHash)) {
+                return block;
+            }
+        }
         return null;
     }
     
@@ -277,8 +291,30 @@ public class ProofOfAuthority {
      * @param blockIndex The index of the block to clear
      */
     public void clearPendingBlocks(int blockIndex) {
-        // TODO: Implementation required
+        if (blockIndex < 0) {
+            return;
+        }
+
+        // Defensive: ensure maps are initialized
+        if (pendingBlocks == null && votes == null) {
+            return;
+        }
+
+        // If there are no pending entries or votes for this index, nothing to clear
+        boolean hasPending = (pendingBlocks != null && pendingBlocks.containsKey(blockIndex));
+        boolean hasVotes = (votes != null && votes.containsKey(blockIndex));
+        if (!hasPending && !hasVotes) {
+            return;
+        }
+
+        if (pendingBlocks != null) {
+            pendingBlocks.remove(blockIndex);
+        }
+        if (votes != null) {
+            votes.remove(blockIndex);
+        }
     }
+    
     
     // Consensus Rules Enforcement
     
@@ -295,8 +331,44 @@ public class ProofOfAuthority {
      * @throws IllegalArgumentException if block is null
      */
     public boolean enforceConsensusRules(Block block, Block previousBlock) {
-        // TODO: Implementation required
-        return false;
+        if (block == null) {
+            throw new IllegalArgumentException("Block is null");
+        }
+
+        Validator proposer = getValidatorById(block.getValidatorId());
+        if (proposer == null) {
+            return false;
+        }
+
+        PublicKey proposerKey = proposer.getPublicKey();
+        if (!isAuthorizedValidator(proposerKey)) {
+            return false;
+        }
+
+        if (!validateBlockSignature(block, proposerKey)) {
+            return false;
+        }
+
+        if (previousBlock == null) {
+
+            return block.getIndex() == 0;
+        }
+
+        if (block.getIndex() != previousBlock.getIndex() + 1) {
+            return false;
+        }
+
+        // Previous hash must match
+        if (block.getPreviousHash() == null || !block.getPreviousHash().equals(previousBlock.getHash())) {
+            return false;
+        }
+
+        // Timestamps should be non-decreasing
+        if (block.getTimestamp() < previousBlock.getTimestamp()) {
+            return false;
+        }
+
+        return true;
     }
     
     /**
@@ -309,8 +381,24 @@ public class ProofOfAuthority {
      * @throws IllegalArgumentException if block is null
      */
     public boolean shouldAcceptBlock(Block block, Block previousBlock) {
-        // TODO: Implementation required
-        return false;
+        if (block == null) {
+            throw new IllegalArgumentException("Block is null");
+        }
+
+        if (!enforceConsensusRules(block, previousBlock)) {
+            return false;
+        }
+
+        if (previousBlock == null && block.getIndex() == 0) {
+            return true;
+        }
+
+        Block consensus = getConsensusBlock(block.getIndex());
+        if (consensus == null) {
+            return false;
+        }
+
+        return consensus.getHash() != null && consensus.getHash().equals(block.getHash());
     }
     
     // Utility Methods
@@ -322,14 +410,14 @@ public class ProofOfAuthority {
      * @param blockIndex The index to query
      * @return Unmodifiable list of pending blocks for the index, empty list if none
      */
-   public List<Block> getPendingBlocks(int blockIndex) {
+    public List<Block> getPendingBlocks(int blockIndex) {
 
-    if (!pendingBlocks.containsKey(blockIndex)) {
-        return Collections.emptyList(); // Return empty list if no blocks
+        if (pendingBlocks == null || !pendingBlocks.containsKey(blockIndex)) {
+            return Collections.emptyList(); // Return empty list if no blocks
+        }
+
+        return Collections.unmodifiableList(pendingBlocks.get(blockIndex));
     }
-    
-    return Collections.unmodifiableList(pendingBlocks.get(blockIndex));
-}
     /**
      * Retrieves vote count for a specific block candidate.
      * Returns the number of approval votes received.
@@ -344,7 +432,7 @@ public class ProofOfAuthority {
             throw new IllegalArgumentException("BlockHash is null");
         }
         
-        if (!votes.containsKey(blockIndex)) {
+        if (votes == null || !votes.containsKey(blockIndex)) {
             return 0; 
         }
         

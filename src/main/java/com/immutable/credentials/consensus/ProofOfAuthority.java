@@ -5,7 +5,7 @@ import java.security.PublicKey;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
+//yuval
 /**
  * Implements Proof-of-Authority (PoA) consensus mechanism.
  * Manages authorized validators and enforces consensus rules for block acceptance.

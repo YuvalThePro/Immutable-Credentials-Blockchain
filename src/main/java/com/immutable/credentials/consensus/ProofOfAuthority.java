@@ -5,27 +5,21 @@ import java.security.PublicKey;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-//yuval
+
 /**
  * Implements Proof-of-Authority (PoA) consensus mechanism.
  * Manages authorized validators and enforces consensus rules for block acceptance.
- * 
- * Sprint 2 Implementation - Method signatures and documentation only.
  */
 public class ProofOfAuthority {
     
-    // Fields
     private final List<Validator> authorizedValidators;
-    private final Map<Integer, List<Block>> pendingBlocks; // blockIndex -> list of proposed blocks
-    private final Map<Integer, Map<String, Boolean>> votes; // blockIndex -> validatorId -> vote
-    
-    // Constructor
+    private final Map<Integer, List<Block>> pendingBlocks;
+    private final Map<Integer, Map<String, Boolean>> votes;
     
     /**
-     * Initializes the PoA consensus engine with a list of authorized validators.
-     * Loads the initial validator set (hardcoded for Sprint 2).
+     * Initialize the PoA consensus engine with authorized validators.
      * 
-     * @param validators List of authorized Validator objects
+     * @param validators list of authorized Validator objects
      * @throws IllegalArgumentException if validators list is null or empty
      */
     public ProofOfAuthority(List<Validator> validators) {
@@ -37,13 +31,10 @@ public class ProofOfAuthority {
         this.votes = new java.util.HashMap<>();
     }
     
-    // Validator Management
-    
     /**
-     * Checks if a validator is authorized to propose or vote on blocks.
-     * Compares the validator's public key against the authorized validator list.
+     * Check if a validator is authorized to propose or vote on blocks.
      * 
-     * @param validatorPublicKey The public key of the validator to check
+     * @param validatorPublicKey the public key of the validator to check
      * @return true if the validator is authorized, false otherwise
      * @throws IllegalArgumentException if validatorPublicKey is null
      */
@@ -66,13 +57,11 @@ public class ProofOfAuthority {
     }
     
     /**
-     * Retrieves the list of all authorized validators.
-     * Returns an unmodifiable view to prevent external modification.
+     * Get the list of all authorized validators.
      * 
-     * @return Unmodifiable list of authorized Validator objects
+     * @return unmodifiable list of authorized Validator objects
      */
     public List<Validator> getAuthorizedValidators() {
-            // Return defensive copy - prevents external modification
         if (authorizedValidators == null || authorizedValidators.isEmpty()) {
             return Collections.emptyList();
         }
@@ -82,10 +71,10 @@ public class ProofOfAuthority {
     }
     
     /**
-     * Retrieves a specific validator by their public key.
+     * Retrieve a specific validator by their public key.
      * 
-     * @param publicKey The public key of the validator to retrieve
-     * @return The Validator object if found, null otherwise
+     * @param publicKey the public key of the validator to retrieve
+     * @return the Validator object if found, null otherwise
      * @throws IllegalArgumentException if publicKey is null
      */
     public Validator getValidatorByPublicKey(PublicKey publicKey) throws IllegalArgumentException  {
@@ -103,15 +92,11 @@ public class ProofOfAuthority {
         return null;
     }
     
-
-
-    // Block Proposal and Validation
-    
     /**
-     * Retrieves a specific validator by their validator ID.
+     * Retrieve a specific validator by their validator ID.
      * 
-     * @param validatorId The ID of the validator to retrieve
-     * @return The Validator object if found, null otherwise
+     * @param validatorId the ID of the validator to retrieve
+     * @return the Validator object if found, null otherwise
      * @throws IllegalArgumentException if validatorId is null
      */
     public Validator getValidatorById(String validatorId) throws IllegalArgumentException {
@@ -133,11 +118,10 @@ public class ProofOfAuthority {
     }
     
     /**
-     * Registers a proposed block from a validator.
+     * Register a proposed block from a validator.
      * Validates that the proposer is authorized before accepting the block.
-     * Stores the block in pending blocks awaiting consensus.
      * 
-     * @param block The proposed block
+     * @param block the proposed block
      * @return true if the block was accepted for voting, false if rejected
      * @throws IllegalArgumentException if block is null
      */
@@ -183,11 +167,10 @@ public class ProofOfAuthority {
     
 
     /**
-     * Validates that a block's signature matches the claimed validator.
-     * Uses CryptoUtils to verify the block hash signature against validator's public key.
+     * Validate that a block's signature matches the claimed validator.
      * 
-     * @param block The block to validate
-     * @param validatorPublicKey The public key of the claimed validator
+     * @param block the block to validate
+     * @param validatorPublicKey the public key of the claimed validator
      * @return true if signature is valid, false otherwise
      * @throws IllegalArgumentException if block or validatorPublicKey is null
      */
@@ -195,15 +178,12 @@ public class ProofOfAuthority {
         return block.verifySignature(validatorPublicKey);
     }
     
-    // Voting and Consensusz
-    
     /**
-     * Records a validator's vote on a proposed block.
-     * Validates that the voter is authorized before recording the vote.
+     * Record a validator's vote on a proposed block.
      * 
-     * @param blockIndex The index of the block being voted on
-     * @param blockHash The hash of the specific block candidate
-     * @param validatorPublicKey The public key of the voting validator
+     * @param blockIndex the index of the block being voted on
+     * @param blockHash the hash of the specific block candidate
+     * @param validatorPublicKey the public key of the voting validator
      * @param approve true to approve, false to reject
      * @return true if vote was recorded, false if validator not authorized
      * @throws IllegalArgumentException if validatorPublicKey or blockHash is null
@@ -238,16 +218,15 @@ public class ProofOfAuthority {
     }
     
     /**
-     * Checks if consensus has been reached for a specific block.
+     * Check if consensus has been reached for a specific block.
      * Consensus requires majority approval (>50% of authorized validators).
      * 
-     * @param blockIndex The index of the block to check
-     * @param blockHash The hash of the specific block candidate
+     * @param blockIndex the index of the block to check
+     * @param blockHash the hash of the specific block candidate
      * @return true if consensus reached, false otherwise
      * @throws IllegalArgumentException if blockHash is null
      */
     public boolean hasConsensus(int blockIndex, String blockHash) throws IllegalArgumentException {
-        // getVoteCount will validate blockHash
         int approvalCount = getVoteCount(blockIndex, blockHash);
         int requiredVotes = getRequiredVotes();
         
@@ -255,11 +234,10 @@ public class ProofOfAuthority {
     }
     
     /**
-     * Retrieves the block that achieved consensus for a given index.
-     * Returns the first valid block with majority approval.
+     * Get the block that achieved consensus for a given index.
      * 
-     * @param blockIndex The index of the block to retrieve
-     * @return The Block that achieved consensus, or null if no consensus yet
+     * @param blockIndex the index of the block to retrieve
+     * @return the Block that achieved consensus, or null if no consensus yet
      */
     public Block getConsensusBlock(int blockIndex) {
         if (blockIndex < 0) {
@@ -282,22 +260,19 @@ public class ProofOfAuthority {
     }
     
     /**
-     * Clears pending blocks and votes for a specific block index after consensus.
-     * Called after a block is accepted into the blockchain.
+     * Clear pending blocks and votes for a specific block index after consensus.
      * 
-     * @param blockIndex The index of the block to clear
+     * @param blockIndex the index of the block to clear
      */
     public void clearPendingBlocks(int blockIndex) {
         if (blockIndex < 0) {
             return;
         }
 
-        // Defensive: ensure maps are initialized
         if (pendingBlocks == null && votes == null) {
             return;
         }
 
-        // If there are no pending entries or votes for this index, nothing to clear
         boolean hasPending = (pendingBlocks != null && pendingBlocks.containsKey(blockIndex));
         boolean hasVotes = (votes != null && votes.containsKey(blockIndex));
         if (!hasPending && !hasVotes) {
@@ -312,18 +287,11 @@ public class ProofOfAuthority {
         }
     }
     
-    
-    // Consensus Rules Enforcement
-    
     /**
-     * Validates that a block meets all PoA consensus rules:
-     * - Block is proposed by an authorized validator
-     * - Block signature is valid
-     * - Block index follows the previous block
-     * - Previous hash matches the actual previous block hash
+     * Validate that a block meets all PoA consensus rules.
      * 
-     * @param block The block to validate
-     * @param previousBlock The previous block in the chain (null for genesis)
+     * @param block the block to validate
+     * @param previousBlock the previous block in the chain (null for genesis)
      * @return true if all consensus rules are satisfied, false otherwise
      * @throws IllegalArgumentException if block is null
      */
@@ -347,7 +315,6 @@ public class ProofOfAuthority {
         }
 
         if (previousBlock == null) {
-
             return block.getIndex() == 0;
         }
 
@@ -355,12 +322,10 @@ public class ProofOfAuthority {
             return false;
         }
 
-        // Previous hash must match
         if (block.getPreviousHash() == null || !block.getPreviousHash().equals(previousBlock.getHash())) {
             return false;
         }
 
-        // Timestamps should be non-decreasing
         if (block.getTimestamp() < previousBlock.getTimestamp()) {
             return false;
         }
@@ -369,11 +334,10 @@ public class ProofOfAuthority {
     }
     
     /**
-     * Determines if a block should be accepted into the blockchain.
-     * Combines signature validation, authorization check, and consensus verification.
+     * Determine if a block should be accepted into the blockchain.
      * 
-     * @param block The block to evaluate
-     * @param previousBlock The previous block in the chain (null for genesis)
+     * @param block the block to evaluate
+     * @param previousBlock the previous block in the chain (null for genesis)
      * @return true if the block should be accepted, false otherwise
      * @throws IllegalArgumentException if block is null
      */
@@ -398,30 +362,27 @@ public class ProofOfAuthority {
         return consensus.getHash() != null && consensus.getHash().equals(block.getHash());
     }
     
-    // Utility Methods
-    
     /**
-     * Retrieves all pending blocks for a specific block index.
-     * Used for debugging and monitoring the consensus process.
+     * Get all pending blocks for a specific block index.
      * 
-     * @param blockIndex The index to query
-     * @return Unmodifiable list of pending blocks for the index, empty list if none
+     * @param blockIndex the index to query
+     * @return unmodifiable list of pending blocks for the index, empty list if none
      */
     public List<Block> getPendingBlocks(int blockIndex) {
 
         if (pendingBlocks == null || !pendingBlocks.containsKey(blockIndex)) {
-            return Collections.emptyList(); // Return empty list if no blocks
+            return Collections.emptyList();
         }
 
         return Collections.unmodifiableList(pendingBlocks.get(blockIndex));
     }
+    
     /**
-     * Retrieves vote count for a specific block candidate.
-     * Returns the number of approval votes received.
+     * Get vote count for a specific block candidate.
      * 
-     * @param blockIndex The index of the block
-     * @param blockHash The hash of the specific block candidate
-     * @return Number of approval votes, or 0 if no votes yet
+     * @param blockIndex the index of the block
+     * @param blockHash the hash of the specific block candidate
+     * @return number of approval votes, or 0 if no votes yet
      * @throws IllegalArgumentException if blockHash is null
      */
     public int getVoteCount(int blockIndex, String blockHash) {
@@ -444,10 +405,10 @@ public class ProofOfAuthority {
     }
     
     /**
-     * Calculates the minimum number of votes required for consensus.
+     * Calculate the minimum number of votes required for consensus.
      * Majority is defined as more than 50% of authorized validators.
      * 
-     * @return Minimum number of approval votes needed
+     * @return minimum number of approval votes needed
      */
     public int getRequiredVotes() {
         return (authorizedValidators.size() + 1) / 2;

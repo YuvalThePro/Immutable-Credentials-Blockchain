@@ -7,21 +7,23 @@ import java.util.Objects;
 
 /**
  * Represents a single block in the immutable credentials blockchain.
- *
- * <p>Each block contains a header (index, timestamp, previous hash, hash,
- * validator id and signature) and a payload which is the {@link Credential}.
- * The block provides helpers to verify its internal hash and signature.
+ * Each block contains a header with metadata and a credential payload.
+ * Provides methods to verify hash integrity and cryptographic signatures.
  */
 public class Block {
 
-    /** Header containing index, timestamps and cryptographic fields. */
     private final BlockHeader header;
-
-    /** Credential payload stored in this block. */
     private final Credential credential;
     
     /**
-     * Constructor - creates new block with calculated hash and signature
+     * Create a new block with calculated hash and signature.
+     * 
+     * @param index the block index in the chain
+     * @param previousHash the hash of the previous block
+     * @param credential the credential payload
+     * @param validatorId the ID of the validator creating the block
+     * @param signature the cryptographic signature
+     * @throws IllegalArgumentException if credential or validatorId is invalid
      */
     public Block(int index, String previousHash, Credential credential, String validatorId, String signature) {
         if (credential == null) {
@@ -39,7 +41,14 @@ public class Block {
     }
     
     /**
-     * Constructor - creates new block with calculated hash (signature to be added later)
+     * Create a new block with calculated hash without signature.
+     * Signature can be added later.
+     * 
+     * @param index the block index in the chain
+     * @param previousHash the hash of the previous block
+     * @param credential the credential payload
+     * @param validatorId the ID of the validator creating the block
+     * @throws IllegalArgumentException if credential or validatorId is invalid
      */
     public Block(int index, String previousHash, Credential credential, String validatorId) {
         if (credential == null) {
@@ -54,9 +63,12 @@ public class Block {
         
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId);
         this.credential = credential;
-    }
+    
     /**
-     * Copy constructor - creates a copy of an existing block
+     * Create a copy of an existing block.
+     * 
+     * @param other the block to copy
+     * @throws IllegalArgumentException if other is null
      */
     public Block(Block other) {
         if (other == null) {
@@ -66,6 +78,13 @@ public class Block {
         this.credential = new Credential(other.credential);
     }
     
+    /**
+     * Create a copy of an existing block with a new signature.
+     * 
+     * @param other the block to copy
+     * @param signature the signature to set on the new block
+     * @throws IllegalArgumentException if other is null
+     */
     public Block(Block other, String signature) {
         if (other == null) {
             throw new IllegalArgumentException("Block to copy cannot be null");
@@ -75,14 +94,14 @@ public class Block {
     }
 
     /**
-     * Calculate SHA-256 hash of the block's canonical data.
-     *
-     * @param index block index
-     * @param timestamp block timestamp (ms)
-     * @param previousHash previous block's hash
-     * @param credential credential payload
-     * @param validatorId id of the validator who signed the block
-     * @return hex-encoded SHA-256 of the concatenated data
+     * Calculate SHA-256 hash of the block's data.
+     * 
+     * @param index the block index
+     * @param timestamp the block timestamp in milliseconds
+     * @param previousHash the hash of the previous block
+     * @param credential the credential payload
+     * @param validatorId the ID of the validator
+     * @return hex-encoded SHA-256 hash of the concatenated data
      */
     private String calculateHash(int index, long timestamp, String previousHash,
                                  Credential credential, String validatorId) {
@@ -91,13 +110,9 @@ public class Block {
     }
     
     /**
-     * Recalculate hash and verify it matches stored hash
-     */
-    /**
-     * Recalculate the canonical hash for this block and compare to the stored
-     * header hash.
-     *
-     * @return true if the stored hash matches the recomputed canonical hash
+     * Verify that the stored hash matches the recalculated hash.
+     * 
+     * @return true if the hash is valid, false otherwise
      */
     public boolean isHashValid() {
         String calculatedHash = calculateHash(
@@ -112,13 +127,9 @@ public class Block {
 
     /**
      * Verify the block's signature using the provided public key.
-     * <p>
-     * This method recomputes the canonical block data (the same inputs used
-     * when the block hash was created) and verifies the Base64 signature
-     * against that data.
-     *
-     * @param publicKey public key of the validator
-     * @return true when signature is present and valid for the recomputed data
+     * 
+     * @param publicKey the public key of the validator
+     * @return true if signature is valid, false otherwise
      */
     public boolean verifySignature(PublicKey publicKey) {
         String sig = getSignature();
@@ -138,7 +149,10 @@ public class Block {
     }
     
     /**
-     * Check if this block links to the previous block
+     * Check if this block correctly links to the previous block.
+     * 
+     * @param previousBlock the previous block in the chain
+     * @return true if this block's previousHash matches the previous block's hash
      */
     public boolean isLinkedTo(Block previousBlock) {
         if (previousBlock == null) {
@@ -147,38 +161,74 @@ public class Block {
         return header.getPreviousHash().equals(previousBlock.getHash());
     }
     
-    /*
-     * Getters
+    /**
+     * Get the block header.
+     * 
+     * @return the block header
      */
     public BlockHeader getHeader() {
         return header;
     }
     
+    /**
+     * Get the credential payload.
+     * 
+     * @return the credential
+     */
     public Credential getCredential() {
         return credential;
     }
     
-    // Convenience getters for header fields
+    /**
+     * Get the block index.
+     * 
+     * @return the block index
+     */
     public int getIndex() {
         return header.getIndex();
     }
     
+    /**
+     * Get the block timestamp.
+     * 
+     * @return the timestamp in milliseconds
+     */
     public long getTimestamp() {
         return header.getTimestamp();
     }
     
+    /**
+     * Get the hash of the previous block.
+     * 
+     * @return the previous block hash
+     */
     public String getPreviousHash() {
         return header.getPreviousHash();
     }
     
+    /**
+     * Get the hash of this block.
+     * 
+     * @return the block hash
+     */
     public String getHash() {
         return header.getHash();
     }
     
+    /**
+     * Get the validator ID.
+     * 
+     * @return the ID of the validator who created this block
+     */
     public String getValidatorId() {
         return header.getValidatorId();
     }
     
+    /**
+     * Get the block signature.
+     * 
+     * @return the cryptographic signature
+     */
     public String getSignature() {
         return header.getSignature();
     }

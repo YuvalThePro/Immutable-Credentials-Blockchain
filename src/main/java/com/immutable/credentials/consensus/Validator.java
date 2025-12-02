@@ -8,6 +8,10 @@ import java.util.Objects;
 import com.immutable.credentials.crypto.CryptoUtils;
 import com.immutable.credentials.model.Block;
 
+/**
+ * Represents a validator in the Proof-of-Authority consensus mechanism.
+ * Validators can sign blocks and verify signatures using their key pairs.
+ */
 public class Validator {
     private final String validatorId;
     private final String validatorName;
@@ -19,13 +23,13 @@ public class Validator {
     private boolean isActive;
 
     /**
-     * Full constructor for creating a validator.
+     * Create a new validator with complete identification and keys.
      * 
-     * @param validatorId   Unique identifier for this validator
-     * @param validatorName Human-readable name of the validator
-     * @param publicKey     Public key for signature verification
-     * @param privateKey    Private key for signing blocks (kept secure)
-     * @param institution   Associated university/institution
+     * @param validatorId the unique identifier for this validator
+     * @param validatorName the human-readable name of the validator
+     * @param publicKey the public key for signature verification
+     * @param privateKey the private key for signing blocks (kept secure)
+     * @param institution the associated university or institution
      */
     public Validator(String validatorId, String validatorName,
             PublicKey publicKey, PrivateKey privateKey,
@@ -36,10 +40,18 @@ public class Validator {
         this.publicKey = publicKey;
         this.privateKey = privateKey;
         this.institution = institution;
-        this.isActive = false; // Validators start inactive
+        this.isActive = false;
     }
 
-    // Sign a block with validator's private key
+    /**
+     * Sign a block with the validator's private key.
+     * 
+     * @param block the block to sign
+     * @return the Base64-encoded signature
+     * @throws SignatureException if signing fails
+     * @throws IllegalStateException if validator lacks private key or is inactive
+     * @throws IllegalArgumentException if block is null
+     */
     public String signBlock(Block block) throws SignatureException {
         if (this.privateKey == null) {
             throw new IllegalStateException("Cannot sign block: Validator has no private key");
@@ -53,14 +65,8 @@ public class Validator {
             throw new IllegalArgumentException("Cannot sign null block");
         }
         try {
-            // Step 1: Get the block's hash (the data to sign)
             String blockHash = block.getHash();
-
-            // Step 2: Sign the hash using CryptoUtils with validator's private key
             String signature = CryptoUtils.signData(blockHash, this.privateKey);
-
-            // Optional: Log this signing activity for audit trail
-
             return signature;
 
         } catch (Exception e) {
@@ -68,50 +74,79 @@ public class Validator {
         }
     }
 
-    // Verify a signature using validator's public key
+    /**
+     * Verify a block's signature using the validator's public key.
+     * 
+     * @param block the block to verify
+     * @return true if signature is valid, false otherwise
+     */
     public boolean verifySignature(Block block) {
         if (this.publicKey == null || block == null) {
             return false;
         }
 
         try {
-            // Get block hash
             return block.verifySignature(publicKey);
         } catch (Exception e) {
-            // Any exception means verification failed
             return false;
         }
     }
 
-    // Activate the validator
+    /**
+     * Activate the validator.
+     */
     public void activate() {
         this.isActive = true;
     }
 
-    // Deactivate the validator
+    /**
+     * Deactivate the validator.
+     */
     public void deactivate() {
         this.isActive = false;
     }
 
-    // Getters
-
+    /**
+     * Get the validator ID.
+     * 
+     * @return the validator ID
+     */
     public String getValidatorId() {
         return this.validatorId;
     }
 
+    /**
+     * Get the validator name.
+     * 
+     * @return the validator name
+     */
     public String getValidatorName() {
         return this.validatorName;
     }
 
+    /**
+     * Get the institution.
+     * 
+     * @return the associated institution
+     */
     public String getInstitution() {
         return this.institution;
     }
 
+    /**
+     * Get the public key.
+     * 
+     * @return the public key
+     */
     public PublicKey getPublicKey() {
         return this.publicKey;
     }
 
-    // Note: NO getter for privateKey (security)
+    /**
+     * Check if the validator is active.
+     * 
+     * @return true if active, false otherwise
+     */
     public boolean isActive() {
         return this.isActive;
     }
@@ -141,7 +176,7 @@ public class Validator {
                 validatorName,
                 institution,
                 isActive,
-                (privateKey != null) // Don't expose the key itself!
+                (privateKey != null)
         );
 
     }

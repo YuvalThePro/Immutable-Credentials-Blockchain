@@ -63,6 +63,7 @@ public class Block {
         
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId);
         this.credential = credential;
+    }
     
     /**
      * Create a copy of an existing block.

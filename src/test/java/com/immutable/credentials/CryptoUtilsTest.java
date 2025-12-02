@@ -1,10 +1,7 @@
 
 import com.immutable.credentials.crypto.CryptoUtils;
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.*;
 import java.security.KeyPair;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 
 /**
  * Unit tests for CryptoUtils - Sprint 2.
@@ -20,7 +17,7 @@ public class CryptoUtilsTest {
         String hash1 = CryptoUtils.applySha256(input);
         String hash2 = CryptoUtils.applySha256(input);
         
-        assertEquals(hash1, hash2, "Same input should produce same hash");
+        Assert.assertEquals("Same input should produce same hash", hash1, hash2);
     }
 
     @Test
@@ -28,10 +25,10 @@ public class CryptoUtilsTest {
         String input = "Test Data";
         String hash = CryptoUtils.applySha256(input);
         
-        assertNotNull(hash);
+        Assert.assertNotNull(hash);
         // SHA-256 produces 64 hex characters (256 bits / 4 bits per hex char)
-        assertEquals(64, hash.length());
-        assertTrue(hash.matches("[0-9a-f]{64}"), "Hash should be 64 hex characters");
+        Assert.assertEquals(64, hash.length());
+        Assert.assertTrue("Hash should be 64 hex characters", hash.matches("[0-9a-f]{64}"));
     }
 
     @Test
@@ -42,17 +39,17 @@ public class CryptoUtilsTest {
         String hash1 = CryptoUtils.applySha256(input1);
         String hash2 = CryptoUtils.applySha256(input2);
         
-        assertNotEquals(hash1, hash2, "Different inputs should produce different hashes");
+        Assert.assertNotEquals(hash1, hash2, "Different inputs should produce different hashes");
     }
 
     @Test
     public void testApplySha256EmptyString() {
         String hash = CryptoUtils.applySha256("");
         
-        assertNotNull(hash);
-        assertEquals(64, hash.length());
+        Assert.assertNotNull(hash);
+        Assert.assertEquals(64, hash.length());
         // SHA-256 of empty string is a known value
-        assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hash);
+        Assert.assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hash);
     }
 
     @Test
@@ -64,8 +61,8 @@ public class CryptoUtilsTest {
         
         String hash = CryptoUtils.applySha256(largeInput.toString());
         
-        assertNotNull(hash);
-        assertEquals(64, hash.length());
+        Assert.assertNotNull(hash);
+        Assert.assertEquals(64, hash.length());
     }
 
     // ========== Key Pair Generation Tests ==========
@@ -74,17 +71,17 @@ public class CryptoUtilsTest {
     public void testGenerateKeyPairNotNull() {
         KeyPair keyPair = CryptoUtils.generateKeyPair();
         
-        assertNotNull(keyPair);
-        assertNotNull(keyPair.getPublic());
-        assertNotNull(keyPair.getPrivate());
+        Assert.assertNotNull(keyPair);
+        Assert.assertNotNull(keyPair.getPublic());
+        Assert.assertNotNull(keyPair.getPrivate());
     }
 
     @Test
     public void testGenerateKeyPairRSA() {
         KeyPair keyPair = CryptoUtils.generateKeyPair();
         
-        assertEquals("RSA", keyPair.getPublic().getAlgorithm());
-        assertEquals("RSA", keyPair.getPrivate().getAlgorithm());
+        Assert.assertEquals("RSA", keyPair.getPublic().getAlgorithm());
+        Assert.assertEquals("RSA", keyPair.getPrivate().getAlgorithm());
     }
 
     @Test
@@ -92,10 +89,10 @@ public class CryptoUtilsTest {
         KeyPair keyPair1 = CryptoUtils.generateKeyPair();
         KeyPair keyPair2 = CryptoUtils.generateKeyPair();
         
-        assertNotEquals(keyPair1.getPublic(), keyPair2.getPublic(),
-            "Different key pairs should have different public keys");
-        assertNotEquals(keyPair1.getPrivate(), keyPair2.getPrivate(),
-            "Different key pairs should have different private keys");
+        Assert.assertNotEquals("Different key pairs should have different public keys",
+            keyPair1.getPublic(), keyPair2.getPublic());
+        Assert.assertNotEquals("Different key pairs should have different private keys",
+            keyPair1.getPrivate(), keyPair2.getPrivate());
     }
 
     // ========== Signature Tests ==========
@@ -107,8 +104,8 @@ public class CryptoUtilsTest {
         
         String signature = CryptoUtils.signData(data, keyPair.getPrivate());
         
-        assertNotNull(signature);
-        assertFalse(signature.isEmpty());
+        Assert.assertNotNull(signature);
+        Assert.assertFalse(signature.isEmpty());
     }
 
     @Test
@@ -120,8 +117,8 @@ public class CryptoUtilsTest {
         String signature2 = CryptoUtils.signData(data, keyPair.getPrivate());
         
         // Note: RSA signatures may include randomness (padding), so they might differ
-        assertNotNull(signature1);
-        assertNotNull(signature2);
+        Assert.assertNotNull(signature1);
+        Assert.assertNotNull(signature2);
     }
 
     @Test
@@ -132,7 +129,7 @@ public class CryptoUtilsTest {
         String signature = CryptoUtils.signData(data, keyPair.getPrivate());
         boolean isValid = CryptoUtils.verifySignature(data, signature, keyPair.getPublic());
         
-        assertTrue(isValid, "Valid signature should verify successfully");
+        Assert.assertTrue("Valid signature should verify successfully", isValid);
     }
 
     @Test
@@ -143,7 +140,7 @@ public class CryptoUtilsTest {
         
         boolean isValid = CryptoUtils.verifySignature(data, invalidSignature, keyPair.getPublic());
         
-        assertFalse(isValid, "Invalid signature should fail verification");
+        Assert.assertFalse("Invalid signature should fail verification", isValid);
     }
 
     @Test
@@ -155,7 +152,7 @@ public class CryptoUtilsTest {
         String signature = CryptoUtils.signData(originalData, keyPair.getPrivate());
         boolean isValid = CryptoUtils.verifySignature(tamperedData, signature, keyPair.getPublic());
         
-        assertFalse(isValid, "Signature should fail for tampered data");
+        Assert.assertFalse("Signature should fail for tampered data", isValid);
     }
 
     @Test
@@ -167,7 +164,7 @@ public class CryptoUtilsTest {
         String signature = CryptoUtils.signData(data, keyPair1.getPrivate());
         boolean isValid = CryptoUtils.verifySignature(data, signature, keyPair2.getPublic());
         
-        assertFalse(isValid, "Signature should fail with wrong public key");
+        Assert.assertFalse("Signature should fail with wrong public key", isValid);
     }
 
     // ========== Key Serialization Tests ==========
@@ -179,10 +176,10 @@ public class CryptoUtilsTest {
         String publicKeyStr = CryptoUtils.keyToString(keyPair.getPublic());
         String privateKeyStr = CryptoUtils.keyToString(keyPair.getPrivate());
         
-        assertNotNull(publicKeyStr);
-        assertNotNull(privateKeyStr);
-        assertFalse(publicKeyStr.isEmpty());
-        assertFalse(privateKeyStr.isEmpty());
+        Assert.assertNotNull(publicKeyStr);
+        Assert.assertNotNull(privateKeyStr);
+        Assert.assertFalse(publicKeyStr.isEmpty());
+        Assert.assertFalse(privateKeyStr.isEmpty());
     }
 
     @Test
@@ -191,7 +188,7 @@ public class CryptoUtilsTest {
         String keyStr = CryptoUtils.keyToString(keyPair.getPublic());
         
         // Base64 uses A-Z, a-z, 0-9, +, /, and = for padding
-        assertTrue(keyStr.matches("[A-Za-z0-9+/=]+"), "Key string should be Base64 encoded");
+        Assert.assertTrue("Key string should be Base64 encoded", keyStr.matches("[A-Za-z0-9+/=]+"));
     }
 
     // ========== Israeli ID Validation Tests ==========
@@ -199,37 +196,37 @@ public class CryptoUtilsTest {
     @Test
     public void testIsValidIsraeliIdValidId() {
         // Valid Israeli ID: 123456782 (passes Luhn-like checksum)
-        assertTrue(CryptoUtils.isValidIsraeliId("000000018"));
+        Assert.assertTrue(CryptoUtils.isValidIsraeliId("000000018"));
     }
 
     @Test
     public void testIsValidIsraeliIdNull() {
-        assertFalse(CryptoUtils.isValidIsraeliId(null));
+        Assert.assertFalse(CryptoUtils.isValidIsraeliId(null));
     }
 
     @Test
     public void testIsValidIsraeliIdEmpty() {
-        assertFalse(CryptoUtils.isValidIsraeliId(""));
+        Assert.assertFalse(CryptoUtils.isValidIsraeliId(""));
     }
 
     @Test
     public void testIsValidIsraeliIdTooShort() {
-        assertFalse(CryptoUtils.isValidIsraeliId("12345"));
+        Assert.assertFalse(CryptoUtils.isValidIsraeliId("12345"));
     }
 
     @Test
     public void testIsValidIsraeliIdTooLong() {
-        assertFalse(CryptoUtils.isValidIsraeliId("1234567890"));
+        Assert.assertFalse(CryptoUtils.isValidIsraeliId("1234567890"));
     }
 
     @Test
     public void testIsValidIsraeliIdNonNumeric() {
-        assertFalse(CryptoUtils.isValidIsraeliId("12345678A"));
+        Assert.assertFalse(CryptoUtils.isValidIsraeliId("12345678A"));
     }
 
     @Test
     public void testIsValidIsraeliIdInvalidChecksum() {
         // Invalid checksum
-        assertFalse(CryptoUtils.isValidIsraeliId("123456789"));
+        Assert.assertFalse(CryptoUtils.isValidIsraeliId("123456789"));
     }
 }

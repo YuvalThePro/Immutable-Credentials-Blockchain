@@ -4,14 +4,11 @@ import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.model.Block;
 import com.immutable.credentials.model.Credential;
 import com.immutable.credentials.crypto.CryptoUtils;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-
 import java.security.KeyPair;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import org.junit.*;
 
 /**
  * Unit tests for ProofOfAuthority consensus mechanism - Sprint 2.
@@ -26,7 +23,7 @@ public class ProofOfAuthorityTest {
     private KeyPair keyPair1;
     private KeyPair keyPair2;
 
-    @BeforeEach
+    @Before
     public void setUp() {
         // Create validators
         keyPair1 = CryptoUtils.generateKeyPair();
@@ -61,19 +58,19 @@ public class ProofOfAuthorityTest {
 
     @Test
     public void testIsAuthorizedValidatorTrue() {
-        assertTrue(poa.isAuthorizedValidator(keyPair1.getPublic()));
-        assertTrue(poa.isAuthorizedValidator(keyPair2.getPublic()));
+        Assert.assertTrue(poa.isAuthorizedValidator(keyPair1.getPublic()));
+        Assert.assertTrue(poa.isAuthorizedValidator(keyPair2.getPublic()));
     }
 
     @Test
     public void testIsAuthorizedValidatorFalse() {
         KeyPair unauthorizedKey = CryptoUtils.generateKeyPair();
-        assertFalse(poa.isAuthorizedValidator(unauthorizedKey.getPublic()));
+        Assert.assertFalse(poa.isAuthorizedValidator(unauthorizedKey.getPublic()));
     }
 
     @Test
     public void testIsAuthorizedValidatorNull() {
-        assertThrows(IllegalArgumentException.class, () -> {
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
             poa.isAuthorizedValidator(null);
         });
     }
@@ -81,7 +78,7 @@ public class ProofOfAuthorityTest {
     @Test
     public void testIsAuthorizedValidatorInactive() {
         validator1.deactivate();
-        assertFalse(poa.isAuthorizedValidator(keyPair1.getPublic()));
+        Assert.assertFalse(poa.isAuthorizedValidator(keyPair1.getPublic()));
     }
 
     // ========== Get Validator Tests ==========
@@ -89,20 +86,20 @@ public class ProofOfAuthorityTest {
     @Test
     public void testGetValidatorByPublicKey() {
         Validator found = poa.getValidatorByPublicKey(keyPair1.getPublic());
-        assertNotNull(found);
-        assertEquals("VALIDATOR_001", found.getValidatorId());
+        Assert.assertNotNull(found);
+        Assert.assertEquals("VALIDATOR_001", found.getValidatorId());
     }
 
     @Test
     public void testGetValidatorByPublicKeyNotFound() {
         KeyPair unknownKey = CryptoUtils.generateKeyPair();
         Validator found = poa.getValidatorByPublicKey(unknownKey.getPublic());
-        assertNull(found);
+        Assert.assertNull(found);
     }
 
     @Test
     public void testGetValidatorByPublicKeyNull() {
-        assertThrows(IllegalArgumentException.class, () -> {
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
             poa.getValidatorByPublicKey(null);
         });
     }
@@ -110,19 +107,19 @@ public class ProofOfAuthorityTest {
     @Test
     public void testGetValidatorById() {
         Validator found = poa.getValidatorById("VALIDATOR_001");
-        assertNotNull(found);
-        assertEquals("VALIDATOR_001", found.getValidatorId());
+        Assert.assertNotNull(found);
+        Assert.assertEquals("VALIDATOR_001", found.getValidatorId());
     }
 
     @Test
     public void testGetValidatorByIdNotFound() {
         Validator found = poa.getValidatorById("NONEXISTENT");
-        assertNull(found);
+        Assert.assertNull(found);
     }
 
     @Test
     public void testGetValidatorByIdNull() {
-        assertThrows(IllegalArgumentException.class, () -> {
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
             poa.getValidatorById(null);
         });
     }
@@ -130,8 +127,8 @@ public class ProofOfAuthorityTest {
     @Test
     public void testGetAuthorizedValidators() {
         List<Validator> authValidators = poa.getAuthorizedValidators();
-        assertNotNull(authValidators);
-        assertEquals(2, authValidators.size());
+        Assert.assertNotNull(authValidators);
+        Assert.assertEquals(2, authValidators.size());
     }
 
     // ========== Block Signature Validation Tests ==========
@@ -151,7 +148,7 @@ public class ProofOfAuthorityTest {
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(1, "prevHash", credential, "VALIDATOR_001", signature);
         
-        assertTrue(poa.validateBlockSignature(signedBlock, keyPair1.getPublic()));
+        Assert.assertTrue(poa.validateBlockSignature(signedBlock, keyPair1.getPublic()));
     }
 
     @Test
@@ -167,7 +164,7 @@ public class ProofOfAuthorityTest {
         
         Block block = new Block(1, "prevHash", credential, "VALIDATOR_001", "INVALID_SIG");
         
-        assertFalse(poa.validateBlockSignature(block, keyPair1.getPublic()));
+        Assert.assertFalse(poa.validateBlockSignature(block, keyPair1.getPublic()));
     }
 
     @Test
@@ -185,7 +182,7 @@ public class ProofOfAuthorityTest {
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(1, "prevHash", credential, "VALIDATOR_001", signature);
         
-        assertFalse(poa.validateBlockSignature(signedBlock, keyPair2.getPublic()));
+        Assert.assertFalse(poa.validateBlockSignature(signedBlock, keyPair2.getPublic()));
     }
 
     // ========== Block Proposal Tests ==========
@@ -205,12 +202,12 @@ public class ProofOfAuthorityTest {
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(1, "prevHash", credential, "VALIDATOR_001", signature);
         
-        assertTrue(poa.proposeBlock(signedBlock));
+        Assert.assertTrue(poa.proposeBlock(signedBlock));
     }
 
     @Test
     public void testProposeBlockNull() {
-        assertThrows(IllegalArgumentException.class, () -> {
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
             poa.proposeBlock(null);
         });
     }
@@ -231,7 +228,7 @@ public class ProofOfAuthorityTest {
         String signature = CryptoUtils.signData(block.getHash(), unauthorizedKey.getPrivate());
         Block signedBlock = new Block(1, "prevHash", credential, "UNAUTHORIZED", signature);
         
-        assertFalse(poa.proposeBlock(signedBlock));
+        Assert.assertFalse(poa.proposeBlock(signedBlock));
     }
 
     // ========== Voting Tests ==========
@@ -240,19 +237,19 @@ public class ProofOfAuthorityTest {
     public void testRecordVoteValid() {
         String blockHash = "testHash";
         boolean result = poa.recordVote(1, blockHash, keyPair1.getPublic(), true);
-        assertTrue(result);
+        Assert.assertTrue(result);
     }
 
     @Test
     public void testRecordVoteNullPublicKey() {
-        assertThrows(IllegalArgumentException.class, () -> {
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
             poa.recordVote(1, "hash", null, true);
         });
     }
 
     @Test
     public void testRecordVoteNullBlockHash() {
-        assertThrows(IllegalArgumentException.class, () -> {
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
             poa.recordVote(1, null, keyPair1.getPublic(), true);
         });
     }
@@ -261,7 +258,7 @@ public class ProofOfAuthorityTest {
     public void testRecordVoteUnauthorizedValidator() {
         KeyPair unauthorizedKey = CryptoUtils.generateKeyPair();
         boolean result = poa.recordVote(1, "hash", unauthorizedKey.getPublic(), true);
-        assertFalse(result);
+        Assert.assertFalse(result);
     }
 
     @Test
@@ -271,7 +268,7 @@ public class ProofOfAuthorityTest {
         poa.recordVote(1, blockHash, keyPair2.getPublic(), true);
         
         int count = poa.getVoteCount(1, blockHash);
-        assertEquals(2, count);
+        Assert.assertEquals(2, count);
     }
 
     @Test
@@ -281,7 +278,7 @@ public class ProofOfAuthorityTest {
         poa.recordVote(1, blockHash, keyPair2.getPublic(), false);
         
         int count = poa.getVoteCount(1, blockHash);
-        assertEquals(1, count); // Only approvals count
+        Assert.assertEquals(1, count); // Only approvals count
     }
 
     // ========== Consensus Tests ==========
@@ -292,7 +289,7 @@ public class ProofOfAuthorityTest {
         poa.recordVote(1, blockHash, keyPair1.getPublic(), true);
         poa.recordVote(1, blockHash, keyPair2.getPublic(), true);
         
-        assertTrue(poa.hasConsensus(1, blockHash));
+        Assert.assertTrue(poa.hasConsensus(1, blockHash));
     }
 
     @Test
@@ -301,13 +298,13 @@ public class ProofOfAuthorityTest {
         poa.recordVote(1, blockHash, keyPair1.getPublic(), true);
         
         // Only 1 vote out of 2 validators - no majority
-        assertFalse(poa.hasConsensus(1, blockHash));
+        Assert.assertFalse(poa.hasConsensus(1, blockHash));
     }
 
     @Test
     public void testGetRequiredVotes() {
         int required = poa.getRequiredVotes();
-        assertEquals(1, required); // (2 + 1) / 2 = 1 (majority)
+        Assert.assertEquals(1, required); // (2 + 1) / 2 = 1 (majority)
     }
 
     // ========== Consensus Rules Tests ==========
@@ -337,12 +334,12 @@ public class ProofOfAuthorityTest {
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(1, previousBlock.getHash(), credential, "VALIDATOR_001", signature);
         
-        assertTrue(poa.enforceConsensusRules(signedBlock, previousBlock));
+        Assert.assertTrue(poa.enforceConsensusRules(signedBlock, previousBlock));
     }
 
     @Test
     public void testEnforceConsensusRulesNullBlock() {
-        assertThrows(IllegalArgumentException.class, () -> {
+        Assert.assertThrows(IllegalArgumentException.class, () -> {
             poa.enforceConsensusRules(null, null);
         });
     }
@@ -362,7 +359,7 @@ public class ProofOfAuthorityTest {
         String signature = CryptoUtils.signData(genesis.getHash(), keyPair1.getPrivate());
         Block signedGenesis = new Block(0, "0", credential, "VALIDATOR_001", signature);
         
-        assertTrue(poa.enforceConsensusRules(signedGenesis, null));
+        Assert.assertTrue(poa.enforceConsensusRules(signedGenesis, null));
     }
 
     @Test
@@ -391,7 +388,7 @@ public class ProofOfAuthorityTest {
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(5, previousBlock.getHash(), credential, "VALIDATOR_001", signature);
         
-        assertFalse(poa.enforceConsensusRules(signedBlock, previousBlock));
+        Assert.assertFalse(poa.enforceConsensusRules(signedBlock, previousBlock));
     }
 
     @Test
@@ -420,7 +417,7 @@ public class ProofOfAuthorityTest {
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(1, "WRONG_HASH", credential, "VALIDATOR_001", signature);
         
-        assertFalse(poa.enforceConsensusRules(signedBlock, previousBlock));
+        Assert.assertFalse(poa.enforceConsensusRules(signedBlock, previousBlock));
     }
 
     // ========== Utility Tests ==========
@@ -428,7 +425,7 @@ public class ProofOfAuthorityTest {
     @Test
     public void testGetPendingBlocks() {
         List<Block> pending = poa.getPendingBlocks(1);
-        assertNotNull(pending);
+        Assert.assertNotNull(pending);
     }
 
     @Test
@@ -450,6 +447,6 @@ public class ProofOfAuthorityTest {
         poa.clearPendingBlocks(1);
         
         List<Block> pending = poa.getPendingBlocks(1);
-        assertEquals(0, pending.size());
+        Assert.assertEquals(0, pending.size());
     }
 }

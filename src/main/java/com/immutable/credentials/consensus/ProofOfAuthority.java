@@ -29,10 +29,12 @@ public class ProofOfAuthority {
      * @throws IllegalArgumentException if validators list is null or empty
      */
     public ProofOfAuthority(List<Validator> validators) {
-        // TODO: Implementation required
-        this.authorizedValidators = null;
-        this.pendingBlocks = null;
-        this.votes = null;
+        if (validators == null || validators.isEmpty()) {
+            throw new IllegalArgumentException("Validators list cannot be null or empty");
+        }
+        this.authorizedValidators = validators;
+        this.pendingBlocks = new java.util.HashMap<>();
+        this.votes = new java.util.HashMap<>();
     }
     
     // Validator Management
@@ -254,7 +256,7 @@ public class ProofOfAuthority {
         int approvalCount = getVoteCount(blockIndex, blockHash);
         int requiredVotes = getRequiredVotes();
         
-        return approvalCount >= requiredVotes;
+        return approvalCount > requiredVotes;
     }
     
     /**

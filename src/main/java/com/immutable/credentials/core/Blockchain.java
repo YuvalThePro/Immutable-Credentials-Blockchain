@@ -11,18 +11,13 @@ import java.util.HashMap;
 
 /**
  * Simple in-memory blockchain for immutable credentials.
- *
- * <p>This class stores a linear list of {@link Block} instances and provides
- * basic helpers to add blocks, search by student id and validate the chain
- * integrity and signatures. Validation is conservative and checks index
- * monotonicity, previous-hash linkage, recalculated hash equality,
- * timestamp ordering and validator signatures.
+ * Stores a linear list of blocks and provides methods to add blocks,
+ * search by student ID, and validate chain integrity.
  */
 public class Blockchain {
 
-    /** Ordered list of blocks (index 0 is genesis). */
     private ArrayList<Block> chain;
-
+    
     /**
      * Create a new blockchain and initialize it with a genesis block.
      */
@@ -32,9 +27,9 @@ public class Blockchain {
     }
     
     /**
-     * Build the canonical genesis block for a fresh chain.
-     *
-     * @return genesis {@link Block}
+     * Create the genesis block for a fresh chain.
+     * 
+     * @return the genesis block
      */
     private Block createGenesisBlock() {
         Credential genesisCredential = new Credential(
@@ -46,12 +41,12 @@ public class Blockchain {
             "GENESIS-CRED-000"
         );
         
-        return new Block(0, "0", genesisCredential, "SYSTEM");
+        return new Block(0, "0", genesisCredential, "SYSTEM","GENESIS");
     }
     
     /**
-     * Construct a blockchain by copying an existing list of blocks.
-     *
+     * Create a blockchain by copying an existing list of blocks.
+     * 
      * @param existingChain the list of blocks to copy (may be null)
      */
     public Blockchain(ArrayList<Block> existingChain) {
@@ -64,21 +59,20 @@ public class Blockchain {
     }
     
     /**
-     * Append a block to the end of the chain. Callers should ensure the
-     * block's header fields (index/previousHash/signature) are valid before
-     * adding; this method performs no checks itself.
-     *
-     * @param block block to append
+     * Append a block to the end of the chain.
+     * Does not perform validation - caller should validate before adding.
+     * 
+     * @param block the block to append
      */
     public void addBlock(Block block) {
         this.chain.add(block);
     }
     
     /**
-     * Retrieve a block by index.
-     *
-     * @param index block index
-     * @return block or null when index out of range
+     * Retrieve a block by its index.
+     * 
+     * @param index the block index
+     * @return the block at the specified index, or null if index is out of range
      */
     public Block getBlock(int index) {
         if (index < 0 || index >= chain.size()) {
@@ -88,7 +82,9 @@ public class Blockchain {
     }
     
     /**
-     * Return the most recent block in the chain, or null when empty.
+     * Get the most recent block in the chain.
+     * 
+     * @return the latest block, or null if the chain is empty
      */
     public Block getLatestBlock() {
         if (chain.isEmpty()) {
@@ -98,9 +94,9 @@ public class Blockchain {
     }
     
     /**
-     * Search for blocks whose credential contains the given student id.
-     *
-     * @param studentId student identifier to search for
+     * Search for blocks whose credential contains the given student ID.
+     * 
+     * @param studentId the student identifier to search for
      * @return list of matching blocks (may be empty)
      */
     public ArrayList<Block> searchByStudentId(String studentId) {
@@ -111,7 +107,6 @@ public class Blockchain {
         }
 
         for (Block block : chain) {
-            // defensive: credential may be null in malformed blocks
             if (block.getCredential() != null && studentId.equals(block.getCredential().getStudentId())) {
                 results.add(block);
             }
@@ -139,14 +134,11 @@ public class Blockchain {
     }
     
     /**
-     * Validate the entire chain.
-     *
-     * <p>The provided {@code map} must contain the public keys for validators
-     * referenced by blocks; when a validator's public key is missing the
-     * validation currently fails (policy decision).
-     *
-     * @param map mapping from validator id to their public key (required)
-     * @return true when chain is valid, false otherwise
+     * Validate the entire blockchain against consensus rules.
+     * Checks index ordering, hash linkage, hash validity, timestamps, and signatures.
+     * 
+     * @param map mapping from validator ID to their public key
+     * @return true if the chain is valid, false otherwise
      */
     public boolean validateChain(HashMap<String, PublicKey> map) {
         if (chain == null || chain.size() == 0) {
@@ -154,64 +146,73 @@ public class Blockchain {
         }
 
         if (map == null) {
-            // Validator public key registry is required for signature checks
             return false;
         }
 
         Block genesis = chain.get(0);
 
-        // Basic genesis sanity check
         if (genesis.getIndex() != 0) {
             return false;
         }
 
-        // Validate each consecutive block
         for (int i = 1; i < chain.size(); i++) {
             Block current = chain.get(i);
             Block previous = chain.get(i - 1);
 
-            // Index must be exactly previous + 1
             if (current.getIndex() != previous.getIndex() + 1) {
                 return false;
             }
 
-            // Must link to the previous hash
             if (!current.getPreviousHash().equals(previous.getHash())) {
                 return false;
             }
 
-            // Stored hash must equal recalculated canonical hash
             if (!current.isHashValid()) {
                 return false;
             }
 
-            // Timestamps should be non-decreasing
             if (current.getTimestamp() < previous.getTimestamp()) {
                 return false;
             }
 
-            // Validator must be authorized (public key must exist in map)
             String validatorId = current.getValidatorId();
             PublicKey pk = map.get(validatorId);
             if (pk == null) {
-                // Unauthorized validator - reject block
                 return false;
             }
             
-            // Signature must exist
             String signature = current.getSignature();
             if (signature == null || signature.trim().isEmpty()) {
-                // Missing signature - reject block
                 return false;
             }
             
-            // Verify signature
             if (!CryptoUtils.verifySignature(current.getHash(), signature, pk)) {
-                // Invalid signature - reject block
                 return false;
             }
         }
 
         return true;
+    }
+
+
+    /**
+     * Check if a credential ID already exists in the blockchain.
+     * 
+     * @param credentialId the credential ID to check
+     * @return true if the credential ID exists, false otherwise
+     */
+    public boolean credentialIdExists(String credentialId) {
+        if (credentialId == null) {
+            return false;
+        }
+        
+        for (Block block : chain) {
+            if (block.getCredential() != null && 
+                block.getCredential().getCredentialId() != null &&
+                credentialId.equals(block.getCredential().getCredentialId())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

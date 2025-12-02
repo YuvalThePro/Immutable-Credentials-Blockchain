@@ -7,7 +7,7 @@ import java.util.Objects;
  * Contains metadata for each block
  */
 public class BlockHeader {
-    
+
     /*
      * Fields: index, timestamp, previousHash, hash, validatorId, signature
      */
@@ -17,12 +17,12 @@ public class BlockHeader {
     private final String hash;
     private final String validatorId;
     private String signature;
-    
+
     /**
      * Constructor with signature
      */
-    public BlockHeader(int index, long timestamp, String previousHash, 
-                      String hash, String validatorId, String signature) {
+    public BlockHeader(int index, long timestamp, String previousHash,
+            String hash, String validatorId, String signature) {
         this.index = index;
         this.timestamp = timestamp;
         this.previousHash = previousHash;
@@ -30,12 +30,12 @@ public class BlockHeader {
         this.validatorId = validatorId;
         this.signature = signature;
     }
-    
+
     /**
      * Constructor without signature (signature to be added later)
      */
-    public BlockHeader(int index, long timestamp, String previousHash, 
-                      String hash, String validatorId) {
+    public BlockHeader(int index, long timestamp, String previousHash,
+            String hash, String validatorId) {
         this.index = index;
         this.timestamp = timestamp;
         this.previousHash = previousHash;
@@ -45,16 +45,25 @@ public class BlockHeader {
     }
 
     /**
-        * Copy Constructor
-        */
-        public BlockHeader(BlockHeader other) {
-           this.index = other.index;
-           this.timestamp = other.timestamp;
-           this.previousHash = other.previousHash;
-           this.hash = other.hash;
-           this.validatorId = other.validatorId;
-           this.signature = other.signature;
-        }
+     * Copy Constructor
+     */
+    public BlockHeader(BlockHeader other) {
+        this.index = other.index;
+        this.timestamp = other.timestamp;
+        this.previousHash = other.previousHash;
+        this.hash = other.hash;
+        this.validatorId = other.validatorId;
+        this.signature = other.signature;
+    }
+
+    public BlockHeader(BlockHeader other, String signature) {
+        this.index = other.index;
+        this.timestamp = other.timestamp;
+        this.previousHash = other.previousHash;
+        this.hash = other.hash;
+        this.validatorId = other.validatorId;
+        this.signature = signature;
+    }
 
     /*
      * Getters
@@ -62,49 +71,51 @@ public class BlockHeader {
     public int getIndex() {
         return index;
     }
-    
+
     public long getTimestamp() {
         return timestamp;
     }
-    
+
     public String getPreviousHash() {
         return previousHash;
     }
-    
+
     public String getHash() {
         return hash;
     }
-    
+
     public String getValidatorId() {
         return validatorId;
     }
-    
+
     public String getSignature() {
         return signature;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(index, timestamp, previousHash, hash, validatorId, signature);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
+        if (this == obj)
+            return true;
+        if (obj == null || getClass() != obj.getClass())
+            return false;
         BlockHeader other = (BlockHeader) obj;
         return index == other.index &&
-               timestamp == other.timestamp &&
-               Objects.equals(previousHash, other.previousHash) &&
-               Objects.equals(hash, other.hash) &&
-               Objects.equals(validatorId, other.validatorId) &&
-               Objects.equals(signature, other.signature);
+                timestamp == other.timestamp &&
+                Objects.equals(previousHash, other.previousHash) &&
+                Objects.equals(hash, other.hash) &&
+                Objects.equals(validatorId, other.validatorId) &&
+                Objects.equals(signature, other.signature);
     }
-    
+
     @Override
     public String toString() {
-        return "BlockHeader [index=" + index + ", timestamp=" + timestamp + 
-               ", previousHash=" + previousHash + ", hash=" + hash + 
-               ", validatorId=" + validatorId + ", signature=" + signature + "]";
+        return "BlockHeader [index=" + index + ", timestamp=" + timestamp +
+                ", previousHash=" + previousHash + ", hash=" + hash +
+                ", validatorId=" + validatorId + ", signature=" + signature + "]";
     }
 }

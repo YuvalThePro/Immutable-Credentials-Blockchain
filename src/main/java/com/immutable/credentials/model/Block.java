@@ -66,6 +66,14 @@ public class Block {
         this.credential = new Credential(other.credential);
     }
     
+    public Block(Block other, String signature) {
+        if (other == null) {
+            throw new IllegalArgumentException("Block to copy cannot be null");
+        }
+        this.header = new BlockHeader(other.header, signature);
+        this.credential = new Credential(other.credential);
+    }
+
     /**
      * Calculate SHA-256 hash of the block's canonical data.
      *

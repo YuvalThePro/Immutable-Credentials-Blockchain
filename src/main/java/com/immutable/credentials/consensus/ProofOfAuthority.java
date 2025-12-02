@@ -48,7 +48,6 @@ public class ProofOfAuthority {
      * @throws IllegalArgumentException if validatorPublicKey is null
      */
     public boolean isAuthorizedValidator(PublicKey validatorPublicKey) throws IllegalArgumentException {
-        // TODO: Implementation required
         if(validatorPublicKey == null)
             throw new IllegalArgumentException("Public key is Null");
         
@@ -73,7 +72,6 @@ public class ProofOfAuthority {
      * @return Unmodifiable list of authorized Validator objects
      */
     public List<Validator> getAuthorizedValidators() {
-        // TODO: Implementation required
             // Return defensive copy - prevents external modification
         if (authorizedValidators == null || authorizedValidators.isEmpty()) {
             return Collections.emptyList();
@@ -91,7 +89,6 @@ public class ProofOfAuthority {
      * @throws IllegalArgumentException if publicKey is null
      */
     public Validator getValidatorByPublicKey(PublicKey publicKey) throws IllegalArgumentException  {
-        // TODO: Implementation required
         if(publicKey == null)
         {
             throw new IllegalArgumentException("Public key is Null");
@@ -195,7 +192,6 @@ public class ProofOfAuthority {
      * @throws IllegalArgumentException if block or validatorPublicKey is null
      */
     public boolean validateBlockSignature(Block block, PublicKey validatorPublicKey) {
-        // TODO: Implementation required
         return block.verifySignature(validatorPublicKey);
     }
     
@@ -214,7 +210,6 @@ public class ProofOfAuthority {
      */
     public boolean recordVote(int blockIndex, String blockHash, PublicKey validatorPublicKey, boolean approve) 
     throws IllegalArgumentException{
-        // TODO: Implementation required
         if(validatorPublicKey == null)
             throw new IllegalArgumentException("ValidatorPublicKey is Null");
         

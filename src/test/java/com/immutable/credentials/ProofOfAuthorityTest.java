@@ -146,7 +146,7 @@ public class ProofOfAuthorityTest {
         
         Block block = new Block(1, "prevHash", credential, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
-        Block signedBlock = new Block(1, "prevHash", credential, "VALIDATOR_001", signature);
+        Block signedBlock = new Block(block, signature);        
         
         Assert.assertTrue(poa.validateBlockSignature(signedBlock, keyPair1.getPublic()));
     }
@@ -200,7 +200,7 @@ public class ProofOfAuthorityTest {
         
         Block block = new Block(1, "prevHash", credential, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
-        Block signedBlock = new Block(1, "prevHash", credential, "VALIDATOR_001", signature);
+        Block signedBlock = new Block(block, signature);        
         
         Assert.assertTrue(poa.proposeBlock(signedBlock));
     }
@@ -226,8 +226,7 @@ public class ProofOfAuthorityTest {
         
         Block block = new Block(1, "prevHash", credential, "UNAUTHORIZED");
         String signature = CryptoUtils.signData(block.getHash(), unauthorizedKey.getPrivate());
-        Block signedBlock = new Block(1, "prevHash", credential, "UNAUTHORIZED", signature);
-        
+        Block signedBlock = new Block(block, signature);        
         Assert.assertFalse(poa.proposeBlock(signedBlock));
     }
 
@@ -332,7 +331,7 @@ public class ProofOfAuthorityTest {
         
         Block block = new Block(1, previousBlock.getHash(), credential, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
-        Block signedBlock = new Block(1, previousBlock.getHash(), credential, "VALIDATOR_001", signature);
+        Block signedBlock = new Block(block, signature);        
         
         Assert.assertTrue(poa.enforceConsensusRules(signedBlock, previousBlock));
     }
@@ -357,7 +356,7 @@ public class ProofOfAuthorityTest {
         
         Block genesis = new Block(0, "0", credential, "VALIDATOR_001");
         String signature = CryptoUtils.signData(genesis.getHash(), keyPair1.getPrivate());
-        Block signedGenesis = new Block(0, "0", credential, "VALIDATOR_001", signature);
+        Block signedGenesis = new Block(genesis, signature);        
         
         Assert.assertTrue(poa.enforceConsensusRules(signedGenesis, null));
     }

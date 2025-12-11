@@ -1,7 +1,8 @@
-
+package com.immutable.credentials;
 import com.immutable.credentials.crypto.CryptoUtils;
-import org.junit.*;
 import java.security.KeyPair;
+import org.junit.Test;
+import org.junit.Assert;
 
 /**
  * Unit tests for CryptoUtils - Sprint 2.

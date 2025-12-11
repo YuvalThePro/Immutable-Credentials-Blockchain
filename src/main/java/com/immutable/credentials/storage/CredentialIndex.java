@@ -1,12 +1,12 @@
-
+package com.immutable.credentials.storage;
 import com.immutable.credentials.core.Blockchain;
 import com.immutable.credentials.model.Credential;
 import com.immutable.credentials.model.Block;
-import java.rmi.StubNotFoundException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 
 /**
  * Maintains in-memory indexes for fast credential lookups without scanning the
@@ -19,7 +19,6 @@ import java.util.Map;
  */
 public class CredentialIndex {
 
-    // TODO: Map student ID to list of their credentials
     private Map<String, List<Credential>> studentIdIndex;
     private Map<String, Credential> credentialIdIndex;
 
@@ -29,7 +28,6 @@ public class CredentialIndex {
      * addCredential() or rebuildIndex().
      */
     public CredentialIndex() {
-        // TODO: Initialize index data structures
         studentIdIndex = new HashMap<>();
         credentialIdIndex = new HashMap<>();
     }
@@ -42,11 +40,9 @@ public class CredentialIndex {
      * @throws IllegalArgumentException if credential is null
      */
     public void addCredential(Credential credential) throws IllegalArgumentException {
-        // TODO: Validate credential is not null
         if (credential == null)
             throw new IllegalArgumentException("Credential cant be null");
 
-        // TODO: Add to student ID index
         studentIdIndex.computeIfAbsent(credential.getStudentId(), key -> new ArrayList<>()).add(credential);
         credentialIdIndex.put(credential.getCredentialId(), credential);
 
@@ -84,7 +80,6 @@ public class CredentialIndex {
      * @throws IllegalArgumentException if credentialId is null or empty
      */
     public Credential getCredentialById(String credentialId) throws IllegalArgumentException {
-        // TODO: Validate credentialId
         if (credentialId == null || credentialId.isEmpty())
             throw new IllegalArgumentException("Credential cant be null or empty");
         return credentialIdIndex.get(credentialId);

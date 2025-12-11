@@ -1,3 +1,4 @@
+package com.immutable.credentials.storage;
 
 import com.immutable.credentials.core.Blockchain;
 import com.immutable.credentials.model.Block;
@@ -47,7 +48,7 @@ public class BlockchainStorage {
             jsonLines.append(JsonSerializer.blockToJson(block)).append("\n");
         }
         
-        Files.writeString(filePath, jsonLines.toString());
+        Files.write(filePath, jsonLines.toString().getBytes());
     }
     /**
      * Loads a blockchain from disk (JSONL format - one block per line).
@@ -113,9 +114,9 @@ public class BlockchainStorage {
         String blockJson = JsonSerializer.blockToJson(block) + "\n";
         
         if (Files.exists(filePath)) {
-            Files.writeString(filePath, blockJson, StandardOpenOption.APPEND);
+            Files.write(filePath, blockJson.getBytes(), StandardOpenOption.APPEND);
         } else {
-            Files.writeString(filePath, blockJson);
+            Files.write(filePath, blockJson.getBytes());
         }
     }
 

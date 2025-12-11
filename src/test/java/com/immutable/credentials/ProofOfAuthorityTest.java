@@ -1,3 +1,4 @@
+package com.immutable.credentials;
 
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
@@ -8,7 +9,9 @@ import java.security.KeyPair;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import org.junit.*;
+import org.junit.Test;
+import org.junit.Before;
+import org.junit.Assert;
 
 /**
  * Unit tests for ProofOfAuthority consensus mechanism - Sprint 2.

@@ -31,10 +31,6 @@ public class ConfigLoader {
     private static final String CONFIG_DIR = "config";
     private static final int MAX_PORT = 65535;
     private static final int MIN_PORT = 1024;
-    private static final int MAX_PEERS = 100;
-    private static final int MAX_VALIDATORS = 50;
-    private static final long MAX_TIMEOUT = 3600000; // 1 hour in milliseconds
-    private static final long MAX_INTERVAL = 86400000; // 24 hours in milliseconds
 
     /**
      * Load node configuration from node.properties file.
@@ -81,7 +77,7 @@ public class ConfigLoader {
         HashMap<String, PublicKey> validators = new HashMap<>();
 
         int validatorCount = 0;
-        for (int i = 1; i <= MAX_VALIDATORS; i++) {
+        for (int i = 1; i <= 1000; i++) {
             String idKey = "validator." + i + ".id";
             String keyKey = "validator." + i + ".publickey";
 
@@ -262,7 +258,7 @@ public class ConfigLoader {
             String[] peerArray = peersStr.split(",");
             for (String peer : peerArray) {
                 peer = peer.trim();
-                if (!peer.isEmpty() && peers.size() < MAX_PEERS) {
+                if (!peer.isEmpty()) {
                     peers.add(validatePeerAddress(peer));
                 }
             }
@@ -279,7 +275,7 @@ public class ConfigLoader {
      */
     public static int getMaxConnections(Properties networkConfig) {
         String maxStr = networkConfig.getProperty("network.max.connections", "10");
-        return validatePositiveInt(maxStr, "Max connections", MAX_PEERS);
+        return validatePositiveInt(maxStr, "Max connections", 10000);
     }
 
     /**
@@ -450,9 +446,6 @@ public class ConfigLoader {
             if (timeout < 0) {
                 throw new IllegalArgumentException(fieldName + " cannot be negative");
             }
-            if (timeout > MAX_TIMEOUT) {
-                throw new IllegalArgumentException(fieldName + " exceeds maximum value of " + MAX_TIMEOUT);
-            }
             return timeout;
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid " + fieldName + ": " + timeoutStr);
@@ -471,9 +464,6 @@ public class ConfigLoader {
             long interval = Long.parseLong(intervalStr.trim());
             if (interval < 0) {
                 throw new IllegalArgumentException(fieldName + " cannot be negative");
-            }
-            if (interval > MAX_INTERVAL) {
-                throw new IllegalArgumentException(fieldName + " exceeds maximum value of " + MAX_INTERVAL);
             }
             return interval;
         } catch (NumberFormatException e) {

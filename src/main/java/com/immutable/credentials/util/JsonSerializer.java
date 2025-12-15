@@ -20,10 +20,6 @@ import java.util.Date;
  */
 public class JsonSerializer {
 
-    // Maximum safe string length to prevent DoS attacks
-    private static final int MAX_STRING_LENGTH = 10000;
-    private static final int MAX_ARRAY_SIZE = 100000;
-
     /**
      * Convert a Block to JSON string representation.
      * 
@@ -146,10 +142,6 @@ public class JsonSerializer {
             throw new IllegalArgumentException("Chain cannot be null");
         }
 
-        if (chain.size() > MAX_ARRAY_SIZE) {
-            throw new IllegalArgumentException("Chain size exceeds maximum allowed size");
-        }
-
         try {
             JSONArray jsonArray = new JSONArray();
             
@@ -183,17 +175,11 @@ public class JsonSerializer {
 
         try {
             JSONArray jsonArray = new JSONArray(jsonString);
-            
-            if (jsonArray.length() > MAX_ARRAY_SIZE) {
-                throw new IllegalArgumentException("Chain size exceeds maximum allowed size");
-            }
-            
             ArrayList<Block> chain = new ArrayList<>();
             
             for (int i = 0; i < jsonArray.length(); i++) {
-                JSONObject blockObj = jsonArray.getJSONObject(i);
-                Block block = jsonToBlock(blockObj.toString());
-                chain.add(block);
+                JSONObject blockJson = jsonArray.getJSONObject(i);
+                chain.add(jsonToBlock(blockJson.toString()));
             }
             
             return chain;
@@ -213,19 +199,11 @@ public class JsonSerializer {
         if (input == null) {
             return "";
         }
-        
-        // Limit string length to prevent DoS
-        if (input.length() > MAX_STRING_LENGTH) {
-            throw new IllegalArgumentException("String exceeds maximum allowed length: " + MAX_STRING_LENGTH);
-        }
-        
         return input;
     }
 
     /**
-     * Reconstruct a Block from parsed header and credential components.
-     * Uses the deserialization constructor to preserve exact values.
-     * This maintains the original block state when loading from storage.
+     * Reconstruct a Block from stored data without recalculating hash or timestamp.
      * 
      * @param index the block index
      * @param timestamp the block timestamp

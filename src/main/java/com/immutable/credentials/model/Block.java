@@ -120,26 +120,15 @@ public class Block {
         if (validatorId == null || validatorId.trim().isEmpty()) {
             throw new IllegalArgumentException("Validator ID is required");
         }
-        if (validatorId.length() > 100) {
-            throw new IllegalArgumentException("Validator ID exceeds maximum length of 100");
-        }
         
-        // Validate index (reasonable range)
+        // Validate index
         if (index < 0) {
             throw new IllegalArgumentException("Block index cannot be negative");
         }
-        if (index > 100000000) {  // 100 million blocks is reasonable limit
-            throw new IllegalArgumentException("Block index exceeds maximum allowed value");
-        }
         
-        // Validate timestamp (should be reasonable - not before 2020 and not too far in future)
+        // Validate timestamp
         if (timestamp < 0) {
             throw new IllegalArgumentException("Block timestamp cannot be negative");
-        }
-        long minTimestamp = 1577836800000L; // Jan 1, 2020
-        long maxTimestamp = System.currentTimeMillis() + 31536000000L; // 1 year in future
-        if (timestamp < minTimestamp || timestamp > maxTimestamp) {
-            throw new IllegalArgumentException("Block timestamp is outside acceptable range");
         }
         
         // Validate hash format (must be exactly 64 hex chars for SHA-256)
@@ -153,14 +142,10 @@ public class Block {
             throw new IllegalArgumentException("Previous hash must be '0' or a valid 64-character hexadecimal string");
         }
         
-        // Validate signature format if present (Base64 encoded RSA-2048 signature ~344 chars)
+        // Validate signature format if present (Base64 encoded)
         if (signature != null && !signature.trim().isEmpty()) {
             if (!signature.matches("^[A-Za-z0-9+/]+={0,2}$")) {
                 throw new IllegalArgumentException("Signature must be a valid Base64 string");
-            }
-            // RSA-2048 signature is 256 bytes, Base64 encoded = ~344 chars. Allow up to 512 for safety
-            if (signature.length() < 300 || signature.length() > 512) {
-                throw new IllegalArgumentException("Signature length is outside expected range for RSA-2048");
             }
         }
         

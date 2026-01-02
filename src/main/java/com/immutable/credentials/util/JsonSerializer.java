@@ -2,11 +2,12 @@ package com.immutable.credentials.util;
 
 import com.immutable.credentials.model.Block;
 import com.immutable.credentials.model.Credential;
+import java.util.ArrayList;
+import java.util.Date;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import java.util.ArrayList;
-import java.util.Date;
+
 
 /**
  * Secure JSON serializer/deserializer for blockchain objects.

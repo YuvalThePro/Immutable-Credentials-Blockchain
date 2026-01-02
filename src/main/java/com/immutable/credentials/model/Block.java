@@ -95,6 +95,65 @@ public class Block {
     }
 
     /**
+     * Create a block from stored data during deserialization.
+     * This constructor preserves exact header values without recalculating hash.
+     * Used by JsonSerializer when loading blocks from storage.
+     * Public to allow deserialization from outside the package.
+     * 
+     * @param index the block index
+     * @param timestamp the block timestamp
+     * @param previousHash the previous block hash
+     * @param hash the block hash (not recalculated)
+     * @param validatorId the validator ID
+     * @param signature the block signature (may be null)
+     * @param credential the credential payload
+     * @throws IllegalArgumentException if any required field is invalid
+     */
+    public Block(int index, long timestamp, String previousHash, String hash, 
+          String validatorId, String signature, Credential credential) {
+        // Validate credential first
+        if (credential == null) {
+            throw new IllegalArgumentException("Credential is required");
+        }
+        
+        // Validate validatorId
+        if (validatorId == null || validatorId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Validator ID is required");
+        }
+        
+        // Validate index
+        if (index < 0) {
+            throw new IllegalArgumentException("Block index cannot be negative");
+        }
+        
+        // Validate timestamp
+        if (timestamp < 0) {
+            throw new IllegalArgumentException("Block timestamp cannot be negative");
+        }
+        
+        // Validate hash format (must be exactly 64 hex chars for SHA-256)
+        if (hash == null || !hash.matches("^[a-fA-F0-9]{64}$")) {
+            throw new IllegalArgumentException("Hash must be a valid 64-character hexadecimal string");
+        }
+        
+        // Validate previousHash (genesis can be "0", others must be 64 hex chars)
+        if (previousHash == null || 
+            (!previousHash.equals("0") && !previousHash.matches("^[a-fA-F0-9]{64}$"))) {
+            throw new IllegalArgumentException("Previous hash must be '0' or a valid 64-character hexadecimal string");
+        }
+        
+        // Validate signature format if present (Base64 encoded)
+        if (signature != null && !signature.trim().isEmpty()) {
+            if (!signature.matches("^[A-Za-z0-9+/]+={0,2}$")) {
+                throw new IllegalArgumentException("Signature must be a valid Base64 string");
+            }
+        }
+        
+        this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId, signature);
+        this.credential = new Credential(credential);  // Defensive copy for immutability
+    }
+
+    /**
      * Calculate SHA-256 hash of the block's data.
      * 
      * @param index the block index

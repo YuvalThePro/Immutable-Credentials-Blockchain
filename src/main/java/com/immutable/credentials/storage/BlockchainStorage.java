@@ -9,6 +9,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import com.immutable.credentials.util.JsonSerializer;
 
 /**
  * Handles persistent storage of blockchain data using JSONL format (one JSON object per line).
@@ -75,16 +76,16 @@ public class BlockchainStorage {
             throw new IOException("File is empty: " + path);
         }
         
-        Blockchain blockchain = new Blockchain();
+        ArrayList<Block> blocks = new ArrayList<>();
         
         for (String line : lines) {
             if (line != null && !line.trim().isEmpty()) {
                 Block block = JsonSerializer.jsonToBlock(line);
-                blockchain.addBlock(block);
+                blocks.add(block);
             }
         }
         
-        return blockchain;
+        return new Blockchain(blocks);
     }
 
     /**

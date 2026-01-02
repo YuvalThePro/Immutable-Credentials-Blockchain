@@ -54,7 +54,7 @@ public class Peer implements Serializable {
     public Peer(String address, int port, String nodeId) throws IllegalArgumentException{
         if(address == null || address.isEmpty())
             throw new IllegalArgumentException("Address cant be null or empty.");
-        if(port < 8080 || port > 65535)
+        if(port < 1024 || port > 65535)
             throw new IllegalArgumentException("Port should be in between 8080 - 65535.");
         if(nodeId == null || nodeId.isEmpty())
             throw new IllegalArgumentException("NodeId cant be null or empty.");

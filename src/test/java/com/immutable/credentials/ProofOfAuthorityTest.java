@@ -1,5 +1,4 @@
 package com.immutable.credentials;
-
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.model.Block;

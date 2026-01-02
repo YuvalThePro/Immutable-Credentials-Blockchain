@@ -1,5 +1,4 @@
 package com.immutable.credentials;
-
 import com.immutable.credentials.core.Blockchain;
 import com.immutable.credentials.model.Block;
 import com.immutable.credentials.model.Credential;

@@ -1,3 +1,5 @@
+package com.immutable.credentials;
+
 import com.immutable.credentials.core.Blockchain;
 import com.immutable.credentials.model.Block;
 import com.immutable.credentials.model.Credential;
@@ -7,7 +9,9 @@ import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import org.junit.*;
+import org.junit.Test;
+import org.junit.Before;
+import org.junit.Assert;
 
 /**
  * Unit tests for Blockchain core functionality.

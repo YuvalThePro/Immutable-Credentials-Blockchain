@@ -86,11 +86,12 @@ public class Credential {
     
     /**
      * Get the date the credential was awarded.
+     * Returns a defensive copy to preserve immutability.
      * 
-     * @return the date awarded
+     * @return a copy of the date awarded, or null if not set
      */
     public Date getDateAwarded() {
-        return dateAwarded;
+        return dateAwarded != null ? new Date(dateAwarded.getTime()) : null;
     }
     
     /**

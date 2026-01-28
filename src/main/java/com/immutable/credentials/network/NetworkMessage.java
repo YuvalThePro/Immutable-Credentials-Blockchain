@@ -219,7 +219,13 @@ public class NetworkMessage implements Serializable {
         } else if (payload instanceof Block) {
             json.put("payload", new JSONObject(JsonSerializer.blockToJson((Block) payload)));
         } else if (payload instanceof ArrayList) {
-            json.put("payload", new JSONArray(JsonSerializer.chainToJson((ArrayList<Block>) payload)));
+            ArrayList<Block> blockList = new ArrayList<>();
+            for (Object item : (ArrayList<?>) payload) {
+                if (item instanceof Block) {
+                    blockList.add((Block) item);
+                }
+            }
+            json.put("payload", new JSONArray(JsonSerializer.chainToJson(blockList)));
         } else if (payload instanceof JSONObject || payload instanceof JSONArray) {
             json.put("payload", payload);
         } else {

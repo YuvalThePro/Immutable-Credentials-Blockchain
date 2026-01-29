@@ -9,7 +9,6 @@ import com.immutable.credentials.core.Blockchain;
 import com.immutable.credentials.model.Block;
 import com.immutable.credentials.model.Credential;
 
-
 /**
  * Maintains in-memory indexes for fast credential lookups without scanning the
  * entire blockchain.
@@ -108,9 +107,12 @@ public class CredentialIndex {
 
         // Clear existing indexes
         clear();
-        // Scan all blocks and build index
-        for (Block block : blockchain.getChain()) {
-            addCredentials(block.getCredentials());
+        // Scan all blocks except genesis (block 0) and build index
+        for (int i = 1; i < blockchain.size(); i++) {
+            Block block = blockchain.getBlock(i);
+            if (block != null) {
+                addCredentials(block.getCredentials());
+            }
         }
     }
 
@@ -149,8 +151,8 @@ public class CredentialIndex {
      * @throws IllegalArgumentException if credentialId is null or empty
      */
     public boolean hasCredential(String credentialId) {
-    if (credentialId == null || credentialId.isEmpty())
-        throw new IllegalArgumentException("Credential id cant be null or empty");
-    return credentialIdIndex.containsKey(credentialId);
+        if (credentialId == null || credentialId.isEmpty())
+            throw new IllegalArgumentException("Credential id cant be null or empty");
+        return credentialIdIndex.containsKey(credentialId);
     }
 }

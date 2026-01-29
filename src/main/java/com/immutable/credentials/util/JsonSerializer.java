@@ -119,8 +119,8 @@ public class JsonSerializer {
                     JSONObject credJson = credArray.getJSONObject(i);
                     
                     String studentName = credJson.optString("studentName", "");
-                    long dateMillis = credJson.optLong("dateAwarded", 0);
-                    Date dateAwarded = dateMillis > 0 ? new Date(dateMillis) : null;
+                    long dateMillis = credJson.getLong("dateAwarded");
+                    Date dateAwarded = new Date(dateMillis);
                     String degree = credJson.optString("degree", "");
                     String institution = credJson.optString("institution", "");
                     String studentId = credJson.optString("studentId", "");

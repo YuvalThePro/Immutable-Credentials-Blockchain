@@ -1,12 +1,14 @@
 package com.immutable.credentials.util;
 
-import com.immutable.credentials.model.Block;
-import com.immutable.credentials.model.Credential;
 import java.util.ArrayList;
 import java.util.Date;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import com.immutable.credentials.model.Block;
+import com.immutable.credentials.model.Credential;
 
 
 /**
@@ -50,20 +52,23 @@ public class JsonSerializer {
             
             json.put("header", headerJson);
             
-            // Serialize credential
-            Credential cred = block.getCredential();
-            if (cred != null) {
-                JSONObject credJson = new JSONObject();
-                credJson.put("studentName", sanitizeString(cred.getStudentName()));
-                credJson.put("dateAwarded", cred.getDateAwarded() != null ? cred.getDateAwarded().getTime() : JSONObject.NULL);
-                credJson.put("degree", sanitizeString(cred.getDegree()));
-                credJson.put("institution", sanitizeString(cred.getInstitution()));
-                credJson.put("studentId", sanitizeString(cred.getStudentId()));
-                credJson.put("credentialId", sanitizeString(cred.getCredentialId()));
-                
-                json.put("credential", credJson);
+            // Serialize credentials array
+            ArrayList<Credential> credentials = block.getCredentials();
+            if (credentials != null) {
+                JSONArray credArray = new JSONArray();
+                for (Credential cred : credentials) {
+                    JSONObject credJson = new JSONObject();
+                    credJson.put("studentName", sanitizeString(cred.getStudentName()));
+                    credJson.put("dateAwarded", cred.getDateAwarded() != null ? cred.getDateAwarded().getTime() : JSONObject.NULL);
+                    credJson.put("degree", sanitizeString(cred.getDegree()));
+                    credJson.put("institution", sanitizeString(cred.getInstitution()));
+                    credJson.put("studentId", sanitizeString(cred.getStudentId()));
+                    credJson.put("credentialId", sanitizeString(cred.getCredentialId()));
+                    credArray.put(credJson);
+                }
+                json.put("credentials", credArray);
             } else {
-                json.put("credential", JSONObject.NULL);
+                json.put("credentials", new JSONArray());
             }
             
             return json.toString();
@@ -106,24 +111,27 @@ public class JsonSerializer {
                 throw new IllegalArgumentException("Block timestamp cannot be negative");
             }
             
-            // Deserialize credential
-            Credential credential = null;
-            if (!json.isNull("credential")) {
-                JSONObject credJson = json.getJSONObject("credential");
-                
-                String studentName = credJson.optString("studentName", "");
-                long dateMillis = credJson.optLong("dateAwarded", 0);
-                Date dateAwarded = dateMillis > 0 ? new Date(dateMillis) : null;
-                String degree = credJson.optString("degree", "");
-                String institution = credJson.optString("institution", "");
-                String studentId = credJson.optString("studentId", "");
-                String credentialId = credJson.optString("credentialId", "");
-                
-                credential = new Credential(studentName, dateAwarded, degree, institution, studentId, credentialId);
+            // Deserialize credentials array
+            ArrayList<Credential> credentials = new ArrayList<>();
+            if (!json.isNull("credentials")) {
+                JSONArray credArray = json.getJSONArray("credentials");
+                for (int i = 0; i < credArray.length(); i++) {
+                    JSONObject credJson = credArray.getJSONObject(i);
+                    
+                    String studentName = credJson.optString("studentName", "");
+                    long dateMillis = credJson.optLong("dateAwarded", 0);
+                    Date dateAwarded = dateMillis > 0 ? new Date(dateMillis) : null;
+                    String degree = credJson.optString("degree", "");
+                    String institution = credJson.optString("institution", "");
+                    String studentId = credJson.optString("studentId", "");
+                    String credentialId = credJson.optString("credentialId", "");
+                    
+                    credentials.add(new Credential(studentName, dateAwarded, degree, institution, studentId, credentialId));
+                }
             }
             
             // Reconstruct block preserving the stored header values
-            return reconstructBlock(index, timestamp, previousHash, hash, validatorId, signature, credential);
+            return reconstructBlock(index, timestamp, previousHash, hash, validatorId, signature, credentials);
             
         } catch (JSONException e) {
             throw new RuntimeException("Failed to deserialize JSON to block: " + e.getMessage(), e);
@@ -217,8 +225,8 @@ public class JsonSerializer {
      */
     private static Block reconstructBlock(int index, long timestamp, String previousHash, 
                                          String hash, String validatorId, String signature, 
-                                         Credential credential) {
+                                         ArrayList<Credential> credentials) {
         // Use the deserialization constructor to preserve exact hash and timestamp
-        return new Block(index, timestamp, previousHash, hash, validatorId, signature, credential);
+        return new Block(index, timestamp, previousHash, hash, validatorId, signature, credentials);
     }
 }

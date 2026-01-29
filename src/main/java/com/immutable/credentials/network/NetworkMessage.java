@@ -1,15 +1,16 @@
 package com.immutable.credentials.network;
 
-import com.immutable.credentials.model.Block;
-import com.immutable.credentials.util.JsonSerializer;
-import org.json.JSONObject;
-import org.json.JSONArray;
-import org.json.JSONException;
-
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.UUID;
 import java.util.Date;
+import java.util.UUID;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import com.immutable.credentials.model.Block;
+import com.immutable.credentials.util.JsonSerializer;
 
 /**
  * NetworkMessage represents all messages exchanged between nodes in the P2P

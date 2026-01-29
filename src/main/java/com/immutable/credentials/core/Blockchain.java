@@ -1,13 +1,13 @@
 package com.immutable.credentials.core;
 
-import com.immutable.credentials.crypto.CryptoUtils;
-import com.immutable.credentials.model.Block;
-import com.immutable.credentials.model.Credential;
-
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+
+import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.model.Block;
+import com.immutable.credentials.model.Credential;
 
 /**
  * Simple in-memory blockchain for immutable credentials.
@@ -41,7 +41,9 @@ public class Blockchain {
             "GENESIS-CRED-000"
         );
         
-        return new Block(0, "0", genesisCredential, "SYSTEM","GENESIS");
+        ArrayList<Credential> genesisCredentials = new ArrayList<>();
+        genesisCredentials.add(genesisCredential);
+        return new Block(0, "0", genesisCredentials, "SYSTEM","GENESIS");
     }
     
     /**
@@ -107,8 +109,14 @@ public class Blockchain {
         }
 
         for (Block block : chain) {
-            if (block.getCredential() != null && studentId.equals(block.getCredential().getStudentId())) {
-                results.add(block);
+            ArrayList<Credential> credentials = block.getCredentials();
+            if (credentials != null) {
+                for (Credential cred : credentials) {
+                    if (studentId.equals(cred.getStudentId())) {
+                        results.add(block);
+                        break; // Found match in this block, move to next block
+                    }
+                }
             }
         }
 
@@ -207,10 +215,14 @@ public class Blockchain {
         }
         
         for (Block block : chain) {
-            if (block.getCredential() != null && 
-                block.getCredential().getCredentialId() != null &&
-                credentialId.equals(block.getCredential().getCredentialId())) {
-                return true;
+            ArrayList<Credential> credentials = block.getCredentials();
+            if (credentials != null) {
+                for (Credential cred : credentials) {
+                    if (cred.getCredentialId() != null &&
+                        credentialId.equals(cred.getCredentialId())) {
+                        return true;
+                    }
+                }
             }
         }
         return false;

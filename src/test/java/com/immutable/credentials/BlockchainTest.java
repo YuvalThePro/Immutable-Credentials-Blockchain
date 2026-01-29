@@ -1,17 +1,19 @@
 package com.immutable.credentials;
 
-import com.immutable.credentials.core.Blockchain;
-import com.immutable.credentials.model.Block;
-import com.immutable.credentials.model.Credential;
-import com.immutable.credentials.crypto.CryptoUtils;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import org.junit.Test;
-import org.junit.Before;
+
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import com.immutable.credentials.core.Blockchain;
+import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.model.Block;
+import com.immutable.credentials.model.Credential;
 
 /**
  * Unit tests for Blockchain core functionality.
@@ -50,7 +52,7 @@ public class BlockchainTest {
     @Test
     public void testGenesisBlockCredential() {
         Block genesis = blockchain.getBlock(0);
-        Credential cred = genesis.getCredential();
+        Credential cred = genesis.getCredentials().get(0);
         
         Assert.assertNotNull("Genesis credential should not be null", cred);
         Assert.assertEquals("Genesis student ID", "GENESIS-000", cred.getStudentId());
@@ -73,10 +75,12 @@ public class BlockchainTest {
         );
         
         Block latestBlock = blockchain.getLatestBlock();
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
         Block newBlock = new Block(
             latestBlock.getIndex() + 1,
             latestBlock.getHash(),
-            credential,
+            creds,
             "VALIDATOR_001"
         );
         
@@ -98,10 +102,12 @@ public class BlockchainTest {
             );
             
             Block latestBlock = blockchain.getLatestBlock();
+            ArrayList<Credential> creds = new ArrayList<>();
+            creds.add(credential);
             Block newBlock = new Block(
                 latestBlock.getIndex() + 1,
                 latestBlock.getHash(),
-                credential,
+                creds,
                 "VALIDATOR_001"
             );
             
@@ -147,7 +153,9 @@ public class BlockchainTest {
             "CRED001"
         );
         
-        Block newBlock = new Block(1, latest.getHash(), credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block newBlock = new Block(1, latest.getHash(), creds, "VALIDATOR_001");
         blockchain.addBlock(newBlock);
         
         Block newLatest = blockchain.getLatestBlock();
@@ -168,10 +176,12 @@ public class BlockchainTest {
         );
         
         Block latestBlock = blockchain.getLatestBlock();
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
         Block newBlock = new Block(
             latestBlock.getIndex() + 1,
             latestBlock.getHash(),
-            credential,
+            creds,
             "VALIDATOR_001"
         );
         
@@ -179,7 +189,7 @@ public class BlockchainTest {
         
         ArrayList<Block> results = blockchain.searchByStudentId("STU001");
         Assert.assertEquals("Should find 1 block", 1, results.size());
-        Assert.assertEquals("Should match student ID", "STU001", results.get(0).getCredential().getStudentId());
+        Assert.assertEquals("Should match student ID", "STU001", results.get(0).getCredentials().get(0).getStudentId());
     }
 
     @Test
@@ -213,10 +223,12 @@ public class BlockchainTest {
             );
             
             Block latestBlock = blockchain.getLatestBlock();
+            ArrayList<Credential> creds = new ArrayList<>();
+            creds.add(credential);
             Block newBlock = new Block(
                 latestBlock.getIndex() + 1,
                 latestBlock.getHash(),
-                credential,
+                creds,
                 "VALIDATOR_001"
             );
             
@@ -250,7 +262,9 @@ public class BlockchainTest {
             "CRED001"
         );
         
-        chain.add(new Block(999, "hash", credential, "VALIDATOR_001"));
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        chain.add(new Block(999, "hash", creds, "VALIDATOR_001"));
         
         Assert.assertEquals("Original blockchain should not be modified", originalSize, blockchain.size());
     }
@@ -275,7 +289,9 @@ public class BlockchainTest {
             "CRED001"
         );
         
-        Block block = new Block(1, signedGenesis.getHash(), credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, signedGenesis.getHash(), creds, "VALIDATOR_001");
         String blockSignature = CryptoUtils.signData(block.getHash(), validatorKeyPair.getPrivate());
         Block signedBlock = new Block(block, blockSignature);
         
@@ -307,7 +323,9 @@ public class BlockchainTest {
             "CRED001"
         );
         
-        Block block = new Block(5, signedGenesis.getHash(), credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(5, signedGenesis.getHash(), creds, "VALIDATOR_001");
         String blockSignature = CryptoUtils.signData(block.getHash(), validatorKeyPair.getPrivate());
         Block signedBlock = new Block(block, blockSignature);
         
@@ -334,7 +352,9 @@ public class BlockchainTest {
             "CRED001"
         );
         
-        Block block = new Block(1, "WRONG_HASH", credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, "WRONG_HASH", creds, "VALIDATOR_001");
         String blockSignature = CryptoUtils.signData(block.getHash(), validatorKeyPair.getPrivate());
         Block signedBlock = new Block(block, blockSignature);
         
@@ -361,7 +381,9 @@ public class BlockchainTest {
             "CRED001"
         );
         
-        Block block = new Block(1, signedGenesis.getHash(), credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, signedGenesis.getHash(), creds, "VALIDATOR_001");
         invalidChain.addBlock(block);
         
         Assert.assertFalse("Should fail with missing signature", invalidChain.validateChain(validatorKeys));
@@ -385,7 +407,9 @@ public class BlockchainTest {
             "CRED001"
         );
         
-        Block block = new Block(1, signedGenesis.getHash(), credential, "UNAUTHORIZED");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, signedGenesis.getHash(), creds, "UNAUTHORIZED");
         String blockSignature = CryptoUtils.signData(block.getHash(), validatorKeyPair.getPrivate());
         Block signedBlock = new Block(block, blockSignature);
         
@@ -408,10 +432,12 @@ public class BlockchainTest {
         );
         
         Block latestBlock = blockchain.getLatestBlock();
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
         Block newBlock = new Block(
             latestBlock.getIndex() + 1,
             latestBlock.getHash(),
-            credential,
+            creds,
             "VALIDATOR_001"
         );
         
@@ -449,10 +475,12 @@ public class BlockchainTest {
         );
         
         Block latestBlock = blockchain.getLatestBlock();
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
         Block newBlock = new Block(
             latestBlock.getIndex() + 1,
             latestBlock.getHash(),
-            credential,
+            creds,
             "VALIDATOR_001"
         );
         

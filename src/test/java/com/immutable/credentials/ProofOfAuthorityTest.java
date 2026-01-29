@@ -1,17 +1,19 @@
 package com.immutable.credentials;
 
-import com.immutable.credentials.consensus.ProofOfAuthority;
-import com.immutable.credentials.consensus.Validator;
-import com.immutable.credentials.model.Block;
-import com.immutable.credentials.model.Credential;
-import com.immutable.credentials.crypto.CryptoUtils;
 import java.security.KeyPair;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import org.junit.Test;
-import org.junit.Before;
+
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import com.immutable.credentials.consensus.ProofOfAuthority;
+import com.immutable.credentials.consensus.Validator;
+import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.model.Block;
+import com.immutable.credentials.model.Credential;
 
 /**
  * Unit tests for ProofOfAuthority consensus mechanism - Sprint 2.
@@ -147,7 +149,9 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
-        Block block = new Block(1, "prevHash", credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, "prevHash", creds, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(block, signature);        
         
@@ -165,7 +169,9 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
-        Block block = new Block(1, "prevHash", credential, "VALIDATOR_001", "INVALID_SIG");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, "prevHash", creds, "VALIDATOR_001", "INVALID_SIG");
         
         Assert.assertFalse(poa.validateBlockSignature(block, keyPair1.getPublic()));
     }
@@ -181,9 +187,11 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
-        Block block = new Block(1, "prevHash", credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, "prevHash", creds, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
-        Block signedBlock = new Block(1, "prevHash", credential, "VALIDATOR_001", signature);
+        Block signedBlock = new Block(1, "prevHash", creds, "VALIDATOR_001", signature);
         
         Assert.assertFalse(poa.validateBlockSignature(signedBlock, keyPair2.getPublic()));
     }
@@ -201,7 +209,9 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
-        Block block = new Block(1, "prevHash", credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, "prevHash", creds, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(block, signature);        
         
@@ -227,7 +237,9 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
-        Block block = new Block(1, "prevHash", credential, "UNAUTHORIZED");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, "prevHash", creds, "UNAUTHORIZED");
         String signature = CryptoUtils.signData(block.getHash(), unauthorizedKey.getPrivate());
         Block signedBlock = new Block(block, signature);        
         Assert.assertFalse(poa.proposeBlock(signedBlock));
@@ -321,7 +333,9 @@ public class ProofOfAuthorityTest {
             "STU000",
             "CRED000"
         );
-        Block previousBlock = new Block(0, "0", prevCredential, "VALIDATOR_001");
+        ArrayList<Credential> prevCreds = new ArrayList<>();
+        prevCreds.add(prevCredential);
+        Block previousBlock = new Block(0, "0", prevCreds, "VALIDATOR_001");
         
         Credential credential = new Credential(
             "Student",
@@ -332,7 +346,9 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
-        Block block = new Block(1, previousBlock.getHash(), credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, previousBlock.getHash(), creds, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
         Block signedBlock = new Block(block, signature);        
         
@@ -357,7 +373,9 @@ public class ProofOfAuthorityTest {
             "CRED000"
         );
         
-        Block genesis = new Block(0, "0", credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block genesis = new Block(0, "0", creds, "VALIDATOR_001");
         String signature = CryptoUtils.signData(genesis.getHash(), keyPair1.getPrivate());
         Block signedGenesis = new Block(genesis, signature);        
         
@@ -374,7 +392,9 @@ public class ProofOfAuthorityTest {
             "STU000",
             "CRED000"
         );
-        Block previousBlock = new Block(0, "0", prevCredential, "VALIDATOR_001");
+        ArrayList<Credential> prevCreds = new ArrayList<>();
+        prevCreds.add(prevCredential);
+        Block previousBlock = new Block(0, "0", prevCreds, "VALIDATOR_001");
         
         Credential credential = new Credential(
             "Student",
@@ -385,10 +405,12 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
         // Wrong index (should be 1, not 5)
-        Block block = new Block(5, previousBlock.getHash(), credential, "VALIDATOR_001");
+        Block block = new Block(5, previousBlock.getHash(), creds, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
-        Block signedBlock = new Block(5, previousBlock.getHash(), credential, "VALIDATOR_001", signature);
+        Block signedBlock = new Block(5, previousBlock.getHash(), creds, "VALIDATOR_001", signature);
         
         Assert.assertFalse(poa.enforceConsensusRules(signedBlock, previousBlock));
     }
@@ -403,7 +425,9 @@ public class ProofOfAuthorityTest {
             "STU000",
             "CRED000"
         );
-        Block previousBlock = new Block(0, "0", prevCredential, "VALIDATOR_001");
+        ArrayList<Credential> prevCreds = new ArrayList<>();
+        prevCreds.add(prevCredential);
+        Block previousBlock = new Block(0, "0", prevCreds, "VALIDATOR_001");
         
         Credential credential = new Credential(
             "Student",
@@ -414,10 +438,12 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
         // Wrong previous hash
-        Block block = new Block(1, "WRONG_HASH", credential, "VALIDATOR_001");
+        Block block = new Block(1, "WRONG_HASH", creds, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
-        Block signedBlock = new Block(1, "WRONG_HASH", credential, "VALIDATOR_001", signature);
+        Block signedBlock = new Block(1, "WRONG_HASH", creds, "VALIDATOR_001", signature);
         
         Assert.assertFalse(poa.enforceConsensusRules(signedBlock, previousBlock));
     }
@@ -441,9 +467,11 @@ public class ProofOfAuthorityTest {
             "CRED001"
         );
         
-        Block block = new Block(1, "prevHash", credential, "VALIDATOR_001");
+        ArrayList<Credential> creds = new ArrayList<>();
+        creds.add(credential);
+        Block block = new Block(1, "prevHash", creds, "VALIDATOR_001");
         String signature = CryptoUtils.signData(block.getHash(), keyPair1.getPrivate());
-        Block signedBlock = new Block(1, "prevHash", credential, "VALIDATOR_001", signature);
+        Block signedBlock = new Block(1, "prevHash", creds, "VALIDATOR_001", signature);
         
         poa.proposeBlock(signedBlock);
         poa.clearPendingBlocks(1);

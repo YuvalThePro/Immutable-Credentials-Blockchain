@@ -1,11 +1,13 @@
 package com.immutable.credentials.storage;
-import com.immutable.credentials.core.Blockchain;
-import com.immutable.credentials.model.Credential;
-import com.immutable.credentials.model.Block;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.immutable.credentials.core.Blockchain;
+import com.immutable.credentials.model.Block;
+import com.immutable.credentials.model.Credential;
 
 
 /**
@@ -19,8 +21,8 @@ import java.util.Map;
  */
 public class CredentialIndex {
 
-    private Map<String, List<Credential>> studentIdIndex;
-    private Map<String, Credential> credentialIdIndex;
+    private final Map<String, List<Credential>> studentIdIndex;
+    private final Map<String, Credential> credentialIdIndex;
 
     /**
      * Create a new empty credential index.
@@ -39,13 +41,14 @@ public class CredentialIndex {
      * @param credential the credential to add to the index
      * @throws IllegalArgumentException if credential is null
      */
-    public void addCredential(Credential credential) throws IllegalArgumentException {
-        if (credential == null)
-            throw new IllegalArgumentException("Credential cant be null");
+    public void addCredentials(ArrayList<Credential> credentials) throws IllegalArgumentException {
+        if (credentials == null)
+            throw new IllegalArgumentException("Credentials cant be null");
 
-        studentIdIndex.computeIfAbsent(credential.getStudentId(), key -> new ArrayList<>()).add(credential);
-        credentialIdIndex.put(credential.getCredentialId(), credential);
-
+        for (Credential credential : credentials) {
+            studentIdIndex.computeIfAbsent(credential.getStudentId(), key -> new ArrayList<>()).add(credential);
+            credentialIdIndex.put(credential.getCredentialId(), credential);
+        }
     }
 
     /**
@@ -107,7 +110,7 @@ public class CredentialIndex {
         clear();
         // Scan all blocks and build index
         for (Block block : blockchain.getChain()) {
-            addCredential(block.getCredential());
+            addCredentials(block.getCredentials());
         }
     }
 

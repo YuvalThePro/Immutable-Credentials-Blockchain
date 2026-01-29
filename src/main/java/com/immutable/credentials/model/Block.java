@@ -1,9 +1,11 @@
 package com.immutable.credentials.model;
 
-import com.immutable.credentials.crypto.CryptoUtils;
 import java.security.PublicKey;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Objects;
+
+import com.immutable.credentials.crypto.CryptoUtils;
 
 /**
  * Represents a single block in the immutable credentials blockchain.
@@ -13,7 +15,7 @@ import java.util.Objects;
 public class Block {
 
     private final BlockHeader header;
-    private final Credential credential;
+    private final ArrayList<Credential> credentials;
     
     /**
      * Create a new block with calculated hash and signature.
@@ -25,19 +27,19 @@ public class Block {
      * @param signature the cryptographic signature
      * @throws IllegalArgumentException if credential or validatorId is invalid
      */
-    public Block(int index, String previousHash, Credential credential, String validatorId, String signature) {
-        if (credential == null) {
-            throw new IllegalArgumentException("Credential is required");
+    public Block(int index, String previousHash, ArrayList<Credential> credentials, String validatorId, String signature) {
+        if (credentials == null) {
+            throw new IllegalArgumentException("Credentials are required");
         }
         if (validatorId == null || validatorId.trim().isEmpty()) {
             throw new IllegalArgumentException("Validator ID is required");
         }
         
         long timestamp = new Date().getTime();
-        String hash = calculateHash(index, timestamp, previousHash, credential, validatorId);
+        String hash = calculateHash(index, timestamp, previousHash, credentials, validatorId);
         
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId, signature);
-        this.credential = credential;
+        this.credentials = new ArrayList<>(credentials);
     }
     
     /**
@@ -50,19 +52,19 @@ public class Block {
      * @param validatorId the ID of the validator creating the block
      * @throws IllegalArgumentException if credential or validatorId is invalid
      */
-    public Block(int index, String previousHash, Credential credential, String validatorId) {
-        if (credential == null) {
-            throw new IllegalArgumentException("Credential is required");
+    public Block(int index, String previousHash, ArrayList<Credential> credentials, String validatorId) {
+        if (credentials == null) {
+            throw new IllegalArgumentException("Credentials are required");
         }
         if (validatorId == null || validatorId.trim().isEmpty()) {
             throw new IllegalArgumentException("Validator ID is required");
         }
         
         long timestamp = new Date().getTime();
-        String hash = calculateHash(index, timestamp, previousHash, credential, validatorId);
+        String hash = calculateHash(index, timestamp, previousHash, credentials, validatorId);
         
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId);
-        this.credential = credential;
+        this.credentials = new ArrayList<>(credentials);
     }
     
     /**
@@ -76,7 +78,7 @@ public class Block {
             throw new IllegalArgumentException("Block to copy cannot be null");
         }
         this.header = new BlockHeader(other.header);
-        this.credential = new Credential(other.credential);
+        this.credentials = new ArrayList<>(other.credentials);
     }
     
     /**
@@ -91,7 +93,7 @@ public class Block {
             throw new IllegalArgumentException("Block to copy cannot be null");
         }
         this.header = new BlockHeader(other.header, signature);
-        this.credential = new Credential(other.credential);
+        this.credentials = new ArrayList<>(other.credentials);
     }
 
     /**
@@ -110,10 +112,10 @@ public class Block {
      * @throws IllegalArgumentException if any required field is invalid
      */
     public Block(int index, long timestamp, String previousHash, String hash, 
-          String validatorId, String signature, Credential credential) {
+          String validatorId, String signature, ArrayList<Credential> credentials) {
         // Validate credential first
-        if (credential == null) {
-            throw new IllegalArgumentException("Credential is required");
+        if (credentials == null) {
+            throw new IllegalArgumentException("Credentials are required");
         }
         
         // Validate validatorId
@@ -150,7 +152,7 @@ public class Block {
         }
         
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId, signature);
-        this.credential = new Credential(credential);  // Defensive copy for immutability
+        this.credentials = new ArrayList<>(credentials);  // Defensive copy for immutability
     }
 
     /**
@@ -164,8 +166,8 @@ public class Block {
      * @return hex-encoded SHA-256 hash of the concatenated data
      */
     private String calculateHash(int index, long timestamp, String previousHash,
-                                 Credential credential, String validatorId) {
-        String data = index + timestamp + previousHash + credential.toString() + validatorId;
+                                 ArrayList<Credential> credentials, String validatorId) {
+        String data = index + timestamp + previousHash + credentials.toString() + validatorId;
         return CryptoUtils.applySha256(data);
     }
     
@@ -179,7 +181,7 @@ public class Block {
             header.getIndex(),
             header.getTimestamp(),
             header.getPreviousHash(),
-            credential,
+            credentials,
             header.getValidatorId()
         );
         return header.getHash().equals(calculatedHash);
@@ -201,7 +203,7 @@ public class Block {
             header.getIndex(),
             header.getTimestamp(),
             header.getPreviousHash(),
-            credential,
+            credentials,
             header.getValidatorId()
         );
 
@@ -235,8 +237,8 @@ public class Block {
      * 
      * @return the credential
      */
-    public Credential getCredential() {
-        return credential;
+    public ArrayList<Credential> getCredentials() {
+        return credentials;
     }
     
     /**
@@ -295,7 +297,7 @@ public class Block {
     
     @Override
     public int hashCode() {
-        return Objects.hash(header, credential);
+        return Objects.hash(header, credentials);
     }
     
     @Override
@@ -304,11 +306,11 @@ public class Block {
         if (obj == null || getClass() != obj.getClass()) return false;
         Block other = (Block) obj;
         return Objects.equals(header, other.header) &&
-               Objects.equals(credential, other.credential);
+               Objects.equals(credentials, other.credentials);
     }
     
     @Override
     public String toString() {
-        return "Block [header=" + header + ", credential=" + credential + "]";
+        return "Block [header=" + header + ", credential=" + credentials + "]";
     }
 }

@@ -3,13 +3,11 @@ package com.immutable.credentials.network;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.lang.management.MemoryType;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
-import java.sql.Date;
 import java.util.ArrayList;
 import java.util.Map.Entry;
 import java.util.Collection;
@@ -23,6 +21,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.immutable.credentials.consensus.Validator;
@@ -515,9 +514,16 @@ public class P2PNetwork {
 	 * @param connection the connection to reply on
 	 */
 	private void handleRequestChainMessage(NetworkMessage message, PeerConnection connection) {
-		// TODO: compare currentHeight from payload with local chain size
-		// TODO: if local chain is longer, serialize and send SEND_CHAIN back to this
-		// connection only
+		JSONObject payload = (JSONObject) message.getPayload();
+		int theirHeight = payload.optInt("currentHeight", 0);
+		int ourHeight = node.getBlockchain().size();
+		if (ourHeight <= theirHeight)
+			return;
+		String chainJson = JsonSerializer.chainToJson(node.getBlockchain().getChain());
+		JSONArray chainArray = new JSONArray(chainJson);
+		NetworkMessage response = new NetworkMessage(MessageType.SEND_CHAIN, node.getId(), chainArray);
+		sendMessage(connection, response);
+		System.out.println("[P2PNetwork] Sent chain (height=" + ourHeight + ") to " + connection.peer.getNodeId());
 	}
 
 	/**
@@ -530,9 +536,16 @@ public class P2PNetwork {
 	 * @param connection the connection to reply on
 	 */
 	private void handleRequestBlockMessage(NetworkMessage message, PeerConnection connection) {
-		// TODO: extract blockIndex from payload
-		// TODO: look up block via node.getBlockchain().getBlock(blockIndex)
-		// TODO: if found, send SEND_BLOCK response to this connection only
+		JSONObject payload = (JSONObject) message.getPayload();
+		int blockIndex = payload.optInt("blockIndex", -1);
+		Block block = node.getBlockchain().getBlock(blockIndex);
+		if (block == null) {
+			System.err.println("[P2PNetwork] Requested block " + blockIndex + " not found");
+			return;
+		}
+		JSONObject blockJson = new JSONObject(JsonSerializer.blockToJson(block));
+		NetworkMessage response = new NetworkMessage(MessageType.SEND_BLOCK, node.getId(), blockJson);
+		sendMessage(connection, response);
 	}
 
 	/**
@@ -544,9 +557,23 @@ public class P2PNetwork {
 	 * @param connection the connection the block arrived on
 	 */
 	private void handleSendBlockMessage(NetworkMessage message, PeerConnection connection) {
-		// TODO: deserialize block from payload
-		// TODO: validate hash, index, previousHash, and signature
-		// TODO: append to local chain if valid
+		String payload = message.getPayload().toString();
+		Block block = JsonSerializer.jsonToBlock(payload);
+		if (block == null || !block.isHashValid())
+			return;
+		Block last = node.getBlockchain().getLatestBlock();
+		if (block.getIndex() != last.getIndex() + 1)
+			return;
+		if (!block.getPreviousHash().equals(last.getHash()))
+			return;
+		ProofOfAuthority proofOfAuthority = node.getProofOfAuthority();
+		Validator validator = proofOfAuthority.getValidatorById(block.getValidatorId());
+		if (validator == null)
+			return;
+		if (!proofOfAuthority.validateBlockSignature(block, validator.getPublicKey()))
+			return;
+		node.getBlockchain().addBlock(block);
+		System.out.println("[P2PNetwork] Appended block " + block.getIndex() + " from " + connection.peer.getNodeId());
 	}
 
 	/**
@@ -558,9 +585,15 @@ public class P2PNetwork {
 	 * @param connection the connection the message arrived on
 	 */
 	private void handleChainHeightMessage(NetworkMessage message, PeerConnection connection) {
-		// TODO: extract height from payload
-		// TODO: if peer height > local height, trigger syncChain() or request missing
-		// blocks
+		JSONObject payload = (JSONObject) message.getPayload();
+		int peerHeight = payload.optInt("currentHeight", 0);
+		if (peerHeight > node.getBlockchain().size()) {
+			JSONObject requestPayload = new JSONObject();
+			requestPayload.put("currentHeight", node.getBlockchain().size());
+			NetworkMessage request = new NetworkMessage(MessageType.REQUEST_CHAIN, node.getId(), requestPayload);
+			sendMessage(connection, request);
+			System.out.println("[P2PNetwork] Peer " + connection.peer.getNodeId() + " is ahead (" + peerHeight + " vs " + node.getBlockchain().size() + "), requesting chain");
+		}
 	}
 
 	/**
@@ -571,8 +604,11 @@ public class P2PNetwork {
 	 * @param connection the connection to reply on
 	 */
 	private void handleRequestPeersMessage(NetworkMessage message, PeerConnection connection) {
-		// TODO: serialize knownPeers via JsonSerializer.peerListToJson()
-		// TODO: send SEND_PEERS response to this connection only
+		List<Peer> peers = new ArrayList<>(knownPeers.values());
+		String peersJson = JsonSerializer.peerListToJson(peers);
+		JSONArray peersArray = new JSONArray(peersJson);
+		NetworkMessage response = new NetworkMessage(MessageType.SEND_PEERS, node.getId(), peersArray);
+		sendMessage(connection, response);
 	}
 
 	/**
@@ -582,9 +618,9 @@ public class P2PNetwork {
 	 * @param connection the connection that sent the DISCONNECT
 	 */
 	private void handleDisconnectMessage(PeerConnection connection) {
-		// TODO: log the graceful disconnect
-		// TODO: close connection and update peer state (caller's finally block handles
-		// map removal)
+		System.out.println("[P2PNetwork] Peer disconnected gracefully: " + connection.peer.getNodeId());
+		connection.close();
+		connection.peer.setConnected(false);
 	}
 
 	/**

@@ -3,6 +3,7 @@ package com.immutable.credentials.network;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.lang.management.MemoryType;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -328,7 +329,7 @@ public class P2PNetwork {
 		for (PeerConnection peer : connectionsByNodeId.values()) {
 			JSONObject payload = new JSONObject();
 			payload.put("currentHeight", node.getBlockchain().size());
-			NetworkMessage message = new NetworkMessage(MessageType.REQUEST_CHAIN, node.getId(), payload);
+			NetworkMessage message = new NetworkMessage(MessageType.CHAIN_HEIGHT, node.getId(), payload);
 			sendMessage(peer, message);
 		}
 	}
@@ -337,7 +338,12 @@ public class P2PNetwork {
 	 * Request peer list from all peers.
 	 */
 	public void requestPeerDiscovery() {
-		// TODO: send REQUEST_PEERS
+		if (connectionsByNodeId.isEmpty())
+			return;
+		for (PeerConnection peer : connectionsByNodeId.values()) {
+			NetworkMessage message = new NetworkMessage(MessageType.REQUEST_PEERS, node.getId(), new JSONObject());
+			sendMessage(peer, message);
+		}
 
 	}
 

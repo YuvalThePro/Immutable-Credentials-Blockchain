@@ -592,7 +592,8 @@ public class P2PNetwork {
 			requestPayload.put("currentHeight", node.getBlockchain().size());
 			NetworkMessage request = new NetworkMessage(MessageType.REQUEST_CHAIN, node.getId(), requestPayload);
 			sendMessage(connection, request);
-			System.out.println("[P2PNetwork] Peer " + connection.peer.getNodeId() + " is ahead (" + peerHeight + " vs " + node.getBlockchain().size() + "), requesting chain");
+			System.out.println("[P2PNetwork] Peer " + connection.peer.getNodeId() + " is ahead (" + peerHeight + " vs "
+					+ node.getBlockchain().size() + "), requesting chain");
 		}
 	}
 

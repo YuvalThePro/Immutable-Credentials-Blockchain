@@ -3,9 +3,16 @@ package com.immutable.credentials.network;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.security.PublicKey;
+import java.sql.Date;
+import java.util.ArrayList;
+import java.util.Map.Entry;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,7 +22,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.json.JSONObject;
+
+import com.immutable.credentials.consensus.Validator;
+import com.immutable.credentials.core.Blockchain;
+import com.immutable.credentials.core.Node;
 import com.immutable.credentials.model.Block;
+import com.immutable.credentials.network.NetworkMessage.MessageType;
+import com.immutable.credentials.util.JsonSerializer;
+import com.immutable.credentials.consensus.ProofOfAuthority;
 
 /**
  * P2PNetwork manages peer-to-peer network communication.
@@ -42,6 +57,7 @@ public class P2PNetwork {
 	private volatile boolean running;
 
 	// ===== Configuration =====
+	private final Node node;
 	private int listenPort;
 	private int maxConnections;
 	private int connectTimeoutMillis;
@@ -51,14 +67,16 @@ public class P2PNetwork {
 	/**
 	 * Construct a P2PNetwork with configuration parameters.
 	 * 
+	 * @param node                    the node that owns this network
 	 * @param listenPort              the port to listen on
 	 * @param maxConnections          maximum number of peer connections
 	 * @param connectTimeoutMillis    connection timeout in milliseconds
 	 * @param discoveryIntervalMillis peer discovery interval in milliseconds
 	 * @param syncIntervalMillis      chain sync interval in milliseconds
 	 */
-	public P2PNetwork(int listenPort, int maxConnections, int connectTimeoutMillis,
+	public P2PNetwork(Node node, int listenPort, int maxConnections, int connectTimeoutMillis,
 			long discoveryIntervalMillis, long syncIntervalMillis) {
+		this.node = node;
 		this.listenPort = listenPort;
 		this.maxConnections = maxConnections;
 		this.connectTimeoutMillis = connectTimeoutMillis;
@@ -75,7 +93,6 @@ public class P2PNetwork {
 		if (running) {
 			return; // Already started
 		}
-
 		serverSocket = new ServerSocket(listenPort);
 		running = true;
 
@@ -96,7 +113,6 @@ public class P2PNetwork {
 				java.util.concurrent.TimeUnit.MILLISECONDS);
 
 		System.out.println("[P2PNetwork] Started on port " + listenPort + " (max connections: " + maxConnections + ")");
-
 	}
 
 	/**
@@ -132,7 +148,9 @@ public class P2PNetwork {
 
 		for (PeerConnection conn : connectionsByNodeId.values()) {
 			conn.close();
+			conn.peer.setConnected(false);
 		}
+		connectionsByNodeId.clear();
 		connectionPool.shutdown();
 		scheduler.shutdown();
 		try {
@@ -143,14 +161,22 @@ public class P2PNetwork {
 			scheduler.shutdownNow();
 		}
 		System.out.println("[P2PNetwork] Stopped on port " + listenPort);
-
 	}
 
 	/**
 	 * Starts listening on the configured port.
 	 */
 	private void acceptLoop() {
-		// TODO: accept incoming sockets and handle handshake
+		while (running) {
+			try {
+				Socket socket = serverSocket.accept();
+				handleNewConnection(socket, false);
+			} catch (IOException e) {
+				if (!running)
+					break;
+				System.err.println("[P2PNetwork] Accept error: " + e.getMessage());
+			}
+		}
 	}
 
 	/**
@@ -160,18 +186,126 @@ public class P2PNetwork {
 	 * @param port the peer port
 	 */
 	public void connectToPeer(String host, int port) {
-		// TODO: implement outbound connection
+		if (!running)
+			return;
+		if (connectionsByNodeId.size() >= maxConnections) {
+			System.err.println("[P2PNetwork] Max connections reached");
+			return;
+		}
+
+		if (knownPeers.values().stream()
+				.anyMatch(p -> p.getAddress().equals(host) && p.getPort() == port)) {
+			System.out.println("[P2PNetwork] Already connected to " + host + ":" + port);
+			return;
+		}
+		connectionPool.submit(() -> {
+			Socket socket = null;
+			try {
+				socket = new Socket();
+				socket.connect(new InetSocketAddress(host, port), connectTimeoutMillis);
+				socket.setSoTimeout(30000);
+				System.out.println("[P2PNetwork] Connected to peer " + host + ":" + port);
+				handleNewConnection(socket, true);
+
+			} catch (java.net.SocketTimeoutException e) {
+				System.err.println("[P2PNetwork] Connection timeout to " + host + ":" + port);
+				closeSocketSafely(socket);
+			} catch (java.net.ConnectException e) {
+				System.err.println("[P2PNetwork] Connection refused by " + host + ":" + port);
+				closeSocketSafely(socket);
+			} catch (IOException e) {
+				System.err.println("[P2PNetwork] Failed to connect to " + host + ":" + port + ": " + e.getMessage());
+				closeSocketSafely(socket);
+			}
+		});
+
+	}
+
+	/**
+	 * Safely close a socket, ignoring errors.
+	 */
+	private static void closeSocketSafely(Socket socket) {
+		if (socket != null && !socket.isClosed()) {
+			try {
+				socket.close();
+			} catch (IOException ignored) {
+			}
+		}
 	}
 
 	/**
 	 * Establish a new connection from an accepted socket.
 	 * Uses length-prefixed framing: [4-byte length][message bytes]
 	 */
-	private void handleNewConnection(Socket socket, boolean outbound) {
-		// TODO: create DataInputStream/DataOutputStream
-		// TODO: perform handshake (send/receive)
-		// TODO: register peer and store PeerConnection
-		// TODO: start read loop in connection pool
+	private void handleNewConnection(Socket socket, boolean outbound) throws IOException {
+		DataInputStream in = new DataInputStream(socket.getInputStream());
+		DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+
+		try {
+			NetworkMessage myHandshake = buildHandshakeMessage(node.getId(), listenPort, node.isValidator());
+			byte[] handshakeBytes = myHandshake.toJson().getBytes(StandardCharsets.UTF_8);
+
+			NetworkMessage theirHandshake;
+			if (outbound) {
+				out.writeInt(handshakeBytes.length);
+				out.write(handshakeBytes);
+				out.flush();
+				theirHandshake = readMessage(in);
+			} else {
+				theirHandshake = readMessage(in);
+				out.writeInt(handshakeBytes.length);
+				out.write(handshakeBytes);
+				out.flush();
+			}
+
+			if (theirHandshake.getType() != NetworkMessage.MessageType.HANDSHAKE) {
+				throw new IOException("Expected HANDSHAKE, got: " + theirHandshake.getType());
+			}
+
+			if (node.getId().equals(theirHandshake.getSenderId())) {
+				System.out.println("[P2PNetwork] Rejected self-connection");
+				closeSocketSafely(socket);
+				return;
+			}
+
+			String peerId = theirHandshake.getSenderId();
+			if (connectionsByNodeId.containsKey(peerId)) {
+				System.out.println("[P2PNetwork] Already connected to node: " + peerId);
+				closeSocketSafely(socket);
+				return;
+			}
+
+			Peer peer = registerPeerFromHandshake(theirHandshake, socket);
+			peer.setConnected(true);
+			peer.updateLastSeen();
+
+			PeerConnection connection = new PeerConnection(peer, socket, in, out);
+			connectionsByNodeId.put(peerId, connection);
+
+			System.out.println("[P2PNetwork] Handshake complete with " + peer.getFullAddress() + " [" + peerId + "]");
+
+			connectionPool.submit(() -> {
+				try {
+					while (running && connection.isActive()) {
+						NetworkMessage message = readMessage(connection.dataIn);
+						handleMessage(message, connection);
+					}
+				} catch (IOException e) {
+					if (running) {
+						System.err.println("[P2PNetwork] Lost connection to "
+								+ peer.getNodeId() + ": " + e.getMessage());
+					}
+				} finally {
+					connection.close();
+					connectionsByNodeId.remove(peerId);
+					peer.setConnected(false);
+				}
+			});
+
+		} catch (IOException e) {
+			closeSocketSafely(socket);
+			throw e;
+		}
 	}
 
 	/**
@@ -180,23 +314,23 @@ public class P2PNetwork {
 	 * @param block the block to broadcast
 	 */
 	public void broadcastBlock(Block block) {
-		// TODO: implement broadcast logic
-	}
-
-	/**
-	 * Handle a block received from a peer.
-	 *
-	 * @param block the incoming block
-	 */
-	public void receiveBlock(Block block) {
-		// TODO: implement receive logic
+		NetworkMessage message = new NetworkMessage(NetworkMessage.MessageType.NEW_BLOCK, node.getId(), block);
+		seenMessageIds.add(message.getMessageId()); // prevent echoes of our own block from being reprocessed
+		broadcastMessage(message, null);
 	}
 
 	/**
 	 * Synchronize the local chain with peers.
 	 */
 	public void syncChain() {
-		// TODO: implement chain sync logic
+		if (connectionsByNodeId.isEmpty())
+			return;
+		for (PeerConnection peer : connectionsByNodeId.values()) {
+			JSONObject payload = new JSONObject();
+			payload.put("currentHeight", node.getBlockchain().size());
+			NetworkMessage message = new NetworkMessage(MessageType.REQUEST_CHAIN, node.getId(), payload);
+			sendMessage(peer, message);
+		}
 	}
 
 	/**
@@ -204,20 +338,31 @@ public class P2PNetwork {
 	 */
 	public void requestPeerDiscovery() {
 		// TODO: send REQUEST_PEERS
+
 	}
 
 	/**
 	 * Send heartbeat to all peers.
 	 */
 	public void pingPeers() {
-		// TODO: send PING
+		for (PeerConnection peer : connectionsByNodeId.values()) {
+			JSONObject payload = new JSONObject();
+			payload.put("timestamp", System.currentTimeMillis());
+			sendMessage(peer, new NetworkMessage(NetworkMessage.MessageType.PING, node.getId(), payload));
+		}
+		cleanupTimedOutPeers();
 	}
 
 	/**
 	 * Broadcast any NetworkMessage to peers, with optional exclusion.
 	 */
 	public void broadcastMessage(NetworkMessage message, String excludeNodeId) {
-		// TODO: send to all connections
+		for (PeerConnection connection : connectionsByNodeId.values()) {
+			if (excludeNodeId != null && connection.peer.getNodeId().equals(excludeNodeId))
+				continue;
+			sendMessage(connection, message);
+		}
+
 	}
 
 	/**
@@ -226,8 +371,11 @@ public class P2PNetwork {
 	 * @return list of peers
 	 */
 	public List<Peer> getPeerList() {
-		// TODO: return connected peers
-		return List.of();
+		List<Peer> peers = new ArrayList<>();
+		for (PeerConnection conn : connectionsByNodeId.values()) {
+			peers.add(conn.peer);
+		}
+		return peers;
 	}
 
 	/**
@@ -241,28 +389,212 @@ public class P2PNetwork {
 	 * Handle an incoming NetworkMessage.
 	 */
 	private void handleMessage(NetworkMessage message, PeerConnection connection) {
-		// TODO: switch on message type
+		if (!seenMessageIds.add(message.getMessageId())) {
+			return;
+		}
+		switch (message.getType()) {
+			case NEW_BLOCK:
+				handleNewBlockMessage(message, connection);
+				break;
+			case REQUEST_BLOCK:
+				handleRequestBlockMessage(message, connection);
+				break;
+			case SEND_BLOCK:
+				handleSendBlockMessage(message, connection);
+				break;
+			case REQUEST_CHAIN:
+				handleRequestChainMessage(message, connection);
+				break;
+			case SEND_CHAIN:
+				handleChainMessage(message, connection);
+				break;
+			case CHAIN_HEIGHT:
+				handleChainHeightMessage(message, connection);
+				break;
+			case REQUEST_PEERS:
+				handleRequestPeersMessage(message, connection);
+				break;
+			case SEND_PEERS:
+				handlePeersMessage(message);
+				break;
+			case DISCONNECT:
+				handleDisconnectMessage(connection);
+				break;
+			case HANDSHAKE:
+				break;
+			case ACK:
+				break;
+			case PING:
+				handlePingMessage(message, connection);
+				break;
+			case PONG:
+				handlePongMessage(connection);
+				break;
+			default:
+				System.err.println("[P2PNetwork] Unknown message type: " + message.getType());
+				break;
+		}
+	}
+
+	/**
+	 * Handle a PING message — respond with a PONG linked to the original PING.
+	 */
+	private void handlePingMessage(NetworkMessage ping, PeerConnection connection) {
+		JSONObject payload = new JSONObject();
+		payload.put("timestamp", System.currentTimeMillis());
+		NetworkMessage pong = new NetworkMessage(
+				NetworkMessage.MessageType.PONG, node.getId(), payload, ping.getMessageId());
+		sendMessage(connection, pong);
+	}
+
+	/**
+	 * Handle a PONG message — update the peer's last seen timestamp.
+	 */
+	private void handlePongMessage(PeerConnection connection) {
+		connection.peer.updateLastSeen();
 	}
 
 	/**
 	 * Handle a NEW_BLOCK message.
 	 */
 	private void handleNewBlockMessage(NetworkMessage message, PeerConnection connection) {
-		// TODO: parse block, validate, append, rebroadcast
+		String payload = message.getPayload().toString();
+		Block block = JsonSerializer.jsonToBlock(payload);
+		if (block == null || !block.isHashValid())
+			return;
+		Block last = node.getBlockchain().getLatestBlock();
+		if (block.getIndex() != last.getIndex() + 1) {
+			syncChain();
+			return;
+		}
+		if (!block.getPreviousHash().equals(last.getHash())) {
+			syncChain();
+			return;
+		}
+		ProofOfAuthority proofOfAuthority = node.getProofOfAuthority();
+		Validator validator = proofOfAuthority.getValidatorById(block.getValidatorId());
+		if (validator == null)
+			return;
+		if (!proofOfAuthority.validateBlockSignature(block, validator.getPublicKey()))
+			return;
+		node.getBlockchain().addBlock(block);
+		broadcastMessage(message, connection.peer.getNodeId());
 	}
 
 	/**
 	 * Handle a SEND_CHAIN message.
 	 */
 	private void handleChainMessage(NetworkMessage message, PeerConnection connection) {
-		// TODO: parse chain and reconcile
+		String payload = message.getPayload().toString();
+
+		Blockchain incomingChain = new Blockchain(JsonSerializer.jsonToChain(payload));
+		HashMap<String, PublicKey> map = new HashMap<>();
+		List<Validator> validators = node.getProofOfAuthority().getAuthorizedValidators();
+		for (Validator validator : validators) {
+			map.put(validator.getValidatorId(), validator.getPublicKey());
+		}
+		if (!incomingChain.validateChain(map))
+			return;
+		if (incomingChain.getChain().size() <= node.getBlockchain().getChain().size())
+			return;
+		node.getBlockchain().replaceChain(incomingChain.getChain());
+	}
+
+	/**
+	 * Handle a REQUEST_CHAIN message — peer is asking for our full chain.
+	 * Sends our chain back only if we are ahead of the requester.
+	 *
+	 * @param message    the incoming REQUEST_CHAIN message (payload contains
+	 *                   "currentHeight")
+	 * @param connection the connection to reply on
+	 */
+	private void handleRequestChainMessage(NetworkMessage message, PeerConnection connection) {
+		// TODO: compare currentHeight from payload with local chain size
+		// TODO: if local chain is longer, serialize and send SEND_CHAIN back to this
+		// connection only
+	}
+
+	/**
+	 * Handle a REQUEST_BLOCK message — peer is asking for a specific block by
+	 * index.
+	 * Sends the block back only if we have it.
+	 *
+	 * @param message    the incoming REQUEST_BLOCK message (payload contains
+	 *                   "blockIndex")
+	 * @param connection the connection to reply on
+	 */
+	private void handleRequestBlockMessage(NetworkMessage message, PeerConnection connection) {
+		// TODO: extract blockIndex from payload
+		// TODO: look up block via node.getBlockchain().getBlock(blockIndex)
+		// TODO: if found, send SEND_BLOCK response to this connection only
+	}
+
+	/**
+	 * Handle a SEND_BLOCK message — peer is responding to our REQUEST_BLOCK.
+	 * Validates and appends the block if it fits the local chain.
+	 *
+	 * @param message    the incoming SEND_BLOCK message (payload is a serialized
+	 *                   Block)
+	 * @param connection the connection the block arrived on
+	 */
+	private void handleSendBlockMessage(NetworkMessage message, PeerConnection connection) {
+		// TODO: deserialize block from payload
+		// TODO: validate hash, index, previousHash, and signature
+		// TODO: append to local chain if valid
+	}
+
+	/**
+	 * Handle a CHAIN_HEIGHT message — peer is sharing their current chain height.
+	 * Used for quick comparison without transferring the full chain.
+	 *
+	 * @param message    the incoming CHAIN_HEIGHT message (payload contains
+	 *                   "height")
+	 * @param connection the connection the message arrived on
+	 */
+	private void handleChainHeightMessage(NetworkMessage message, PeerConnection connection) {
+		// TODO: extract height from payload
+		// TODO: if peer height > local height, trigger syncChain() or request missing
+		// blocks
+	}
+
+	/**
+	 * Handle a REQUEST_PEERS message — peer is asking for our known peer list.
+	 * Responds with a SEND_PEERS message containing our knownPeers.
+	 *
+	 * @param message    the incoming REQUEST_PEERS message
+	 * @param connection the connection to reply on
+	 */
+	private void handleRequestPeersMessage(NetworkMessage message, PeerConnection connection) {
+		// TODO: serialize knownPeers via JsonSerializer.peerListToJson()
+		// TODO: send SEND_PEERS response to this connection only
+	}
+
+	/**
+	 * Handle a DISCONNECT message — peer is gracefully closing the connection.
+	 * Cleans up the connection and marks the peer as offline.
+	 *
+	 * @param connection the connection that sent the DISCONNECT
+	 */
+	private void handleDisconnectMessage(PeerConnection connection) {
+		// TODO: log the graceful disconnect
+		// TODO: close connection and update peer state (caller's finally block handles
+		// map removal)
 	}
 
 	/**
 	 * Handle a SEND_PEERS message.
 	 */
 	private void handlePeersMessage(NetworkMessage message) {
-		// TODO: parse peers and connect if needed
+		String payload = message.getPayload().toString();
+		List<Peer> peers = JsonSerializer.jsonToPeerList(payload);
+		for (Peer peer : peers) {
+			if (node.getId().equals(peer.getNodeId()))
+				continue;
+			if (connectionsByNodeId.containsKey(peer.getNodeId()))
+				continue;
+			knownPeers.putIfAbsent(peer.getNodeId(), peer);
+			connectToPeer(peer.getAddress(), peer.getPort());
+		}
 	}
 
 	/**
@@ -270,10 +602,21 @@ public class P2PNetwork {
 	 * Uses length-prefixed framing: writes 4-byte length, then message bytes.
 	 */
 	private void sendMessage(PeerConnection connection, NetworkMessage message) {
-		// TODO: serialize message to JSON bytes
-		// TODO: write length (int) with dataOut.writeInt(bytes.length)
-		// TODO: write bytes with dataOut.write(bytes)
-		// TODO: flush
+		if (connection == null || !connection.isActive() || message == null) {
+			return;
+		}
+		try {
+			byte[] bytes = message.toJson().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+			synchronized (connection.sendLock) {
+				connection.dataOut.writeInt(bytes.length);
+				connection.dataOut.write(bytes);
+				connection.dataOut.flush();
+			}
+		} catch (IOException e) {
+			System.err.println("[P2PNetwork] Failed to send message to "
+					+ connection.peer.getNodeId() + ": " + e.getMessage());
+			connection.close();
+		}
 	}
 
 	/**
@@ -281,35 +624,67 @@ public class P2PNetwork {
 	 * Uses length-prefixed framing: reads 4-byte length, then message bytes.
 	 */
 	private NetworkMessage readMessage(DataInputStream dataIn) throws IOException {
-		// TODO: read length with dataIn.readInt()
-		// TODO: allocate byte array of that length
-		// TODO: read exact bytes with dataIn.readFully(bytes)
-		// TODO: deserialize bytes to JSON string
-		// TODO: parse NetworkMessage.fromJson()
-		return null;
+		try {
+			int length = dataIn.readInt();
+			if (length <= 0 || length > NetworkMessage.MAX_PAYLOAD_SIZE) {
+				throw new IOException("Invalid message length: " + length);
+			}
+			byte[] bytes = new byte[length];
+			dataIn.readFully(bytes);
+			String json = new String(bytes, StandardCharsets.UTF_8);
+			return NetworkMessage.fromJson(json);
+		} catch (IOException e) {
+			throw new IOException("[P2PNetwork] Failed to read message.", e);
+		}
 	}
 
 	/**
 	 * Build a HANDSHAKE message payload.
 	 */
-	private NetworkMessage buildHandshakeMessage() {
-		// TODO: include nodeId, port, validator flag, version
-		return null;
+	private NetworkMessage buildHandshakeMessage(String nodeId, int port, boolean isValidator) {
+		JSONObject payload = new JSONObject();
+		payload.put("nodeId", nodeId);
+		payload.put("port", port);
+		payload.put("isValidator", isValidator);
+		return new NetworkMessage(NetworkMessage.MessageType.HANDSHAKE, nodeId, payload);
+
 	}
 
 	/**
 	 * Parse and register peer data from handshake.
 	 */
-	private Peer registerPeerFromHandshake(NetworkMessage handshake, Socket socket) {
-		// TODO: create peer object and store
-		return null;
+	private Peer registerPeerFromHandshake(NetworkMessage handshake, Socket socket) throws IOException {
+		if (!(handshake.getPayload() instanceof JSONObject)) {
+			throw new IOException("Invalid handshake payload");
+		}
+		JSONObject payload = (JSONObject) handshake.getPayload();
+		String nodeId = payload.getString("nodeId");
+		int port = payload.getInt("port");
+		boolean isValidator = payload.getBoolean("isValidator");
+		Peer peer = new Peer(socket.getInetAddress().getHostAddress(), port, nodeId);
+		peer.setValidator(isValidator);
+		knownPeers.put(nodeId, peer);
+		return peer;
 	}
 
 	/**
 	 * Periodically evict timed out peers.
 	 */
 	private void cleanupTimedOutPeers() {
-		// TODO: remove stale peers and close sockets
+		List<String> timedOut = new ArrayList<>();
+		for (Entry<String, PeerConnection> entry : connectionsByNodeId.entrySet()) {
+			if (entry.getValue().peer.isTimedOut()) {
+				timedOut.add(entry.getKey());
+			}
+		}
+		for (String nodeId : timedOut) {
+			PeerConnection conn = connectionsByNodeId.remove(nodeId);
+			if (conn != null) {
+				conn.close();
+				conn.peer.setConnected(false);
+				System.out.println("[P2PNetwork] Peer timed out: " + nodeId);
+			}
+		}
 	}
 
 	// ===== Connection Wrapper =====
@@ -337,13 +712,9 @@ public class P2PNetwork {
 			return active && !socket.isClosed();
 		}
 
-		private void send(NetworkMessage message) {
-			// TODO: synchronized(sendLock) for thread safety
-			// TODO: serialize, write length + bytes, flush
-		}
-
 		private void close() {
-			// TODO: mark inactive, close socket, remove from registry
+			active = false;
+			closeSocketSafely(socket);
 		}
 	}
 }

@@ -172,9 +172,20 @@ public class Peer implements Serializable {
      * @param timeoutSeconds the timeout duration in seconds
      * @return true if the peer has been inactive longer than the timeout
      */
+    private static final long DEFAULT_TIMEOUT_SECONDS = 30;
+
+    /**
+     * Checks if this peer has timed out using the default timeout (30 seconds).
+     *
+     * @return true if the peer has been inactive longer than the default timeout
+     */
+    public boolean isTimedOut() {
+        return isTimedOut(DEFAULT_TIMEOUT_SECONDS);
+    }
+
     public boolean isTimedOut(long timeoutSeconds) {
+        if (lastSeen == null) return true;
         return Instant.now().getEpochSecond() - lastSeen.getEpochSecond() > timeoutSeconds;
-        
     }
     
     

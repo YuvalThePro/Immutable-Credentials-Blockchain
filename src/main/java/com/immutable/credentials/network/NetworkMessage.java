@@ -35,7 +35,7 @@ public class NetworkMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
     private static final String PROTOCOL_VERSION = "1.0";
-    private static final int MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10MB limit
+    public static final int MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10MB limit
 
     /**
      * Defines all possible message types in the P2P network protocol.

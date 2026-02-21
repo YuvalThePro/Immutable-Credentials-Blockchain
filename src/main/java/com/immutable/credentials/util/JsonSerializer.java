@@ -2,6 +2,7 @@ package com.immutable.credentials.util;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -9,11 +10,12 @@ import org.json.JSONObject;
 
 import com.immutable.credentials.model.Block;
 import com.immutable.credentials.model.Credential;
-
+import com.immutable.credentials.network.Peer;
 
 /**
  * Secure JSON serializer/deserializer for blockchain objects.
- * Provides methods to convert blocks, credentials, and entire chains to/from JSON format.
+ * Provides methods to convert blocks, credentials, and entire chains to/from
+ * JSON format.
  * 
  * Security measures:
  * - Input validation to prevent injection attacks
@@ -29,7 +31,7 @@ public class JsonSerializer {
      * @param block the block to serialize
      * @return JSON string representation of the block
      * @throws IllegalArgumentException if block is null
-     * @throws RuntimeException if serialization fails
+     * @throws RuntimeException         if serialization fails
      */
     public static String blockToJson(Block block) {
         if (block == null) {
@@ -38,7 +40,7 @@ public class JsonSerializer {
 
         try {
             JSONObject json = new JSONObject();
-            
+
             // Serialize header
             JSONObject headerJson = new JSONObject();
             headerJson.put("index", block.getIndex());
@@ -46,12 +48,12 @@ public class JsonSerializer {
             headerJson.put("previousHash", sanitizeString(block.getPreviousHash()));
             headerJson.put("hash", sanitizeString(block.getHash()));
             headerJson.put("validatorId", sanitizeString(block.getValidatorId()));
-            
+
             String signature = block.getSignature();
             headerJson.put("signature", signature != null ? sanitizeString(signature) : JSONObject.NULL);
-            
+
             json.put("header", headerJson);
-            
+
             // Serialize credentials array
             ArrayList<Credential> credentials = block.getCredentials();
             if (credentials != null) {
@@ -59,7 +61,8 @@ public class JsonSerializer {
                 for (Credential cred : credentials) {
                     JSONObject credJson = new JSONObject();
                     credJson.put("studentName", sanitizeString(cred.getStudentName()));
-                    credJson.put("dateAwarded", cred.getDateAwarded() != null ? cred.getDateAwarded().getTime() : JSONObject.NULL);
+                    credJson.put("dateAwarded",
+                            cred.getDateAwarded() != null ? cred.getDateAwarded().getTime() : JSONObject.NULL);
                     credJson.put("degree", sanitizeString(cred.getDegree()));
                     credJson.put("institution", sanitizeString(cred.getInstitution()));
                     credJson.put("studentId", sanitizeString(cred.getStudentId()));
@@ -70,9 +73,9 @@ public class JsonSerializer {
             } else {
                 json.put("credentials", new JSONArray());
             }
-            
+
             return json.toString();
-            
+
         } catch (JSONException e) {
             throw new RuntimeException("Failed to serialize block to JSON", e);
         }
@@ -84,7 +87,7 @@ public class JsonSerializer {
      * @param jsonString the JSON string to deserialize
      * @return the deserialized Block object
      * @throws IllegalArgumentException if jsonString is null or invalid
-     * @throws RuntimeException if deserialization fails
+     * @throws RuntimeException         if deserialization fails
      */
     public static Block jsonToBlock(String jsonString) {
         if (jsonString == null || jsonString.trim().isEmpty()) {
@@ -93,7 +96,7 @@ public class JsonSerializer {
 
         try {
             JSONObject json = new JSONObject(jsonString);
-            
+
             // Deserialize header
             JSONObject headerJson = json.getJSONObject("header");
             int index = headerJson.getInt("index");
@@ -102,7 +105,7 @@ public class JsonSerializer {
             String hash = headerJson.optString("hash", "");
             String validatorId = headerJson.optString("validatorId", "");
             String signature = headerJson.isNull("signature") ? null : headerJson.getString("signature");
-            
+
             // Validate header values
             if (index < 0) {
                 throw new IllegalArgumentException("Block index cannot be negative");
@@ -110,14 +113,14 @@ public class JsonSerializer {
             if (timestamp < 0) {
                 throw new IllegalArgumentException("Block timestamp cannot be negative");
             }
-            
+
             // Deserialize credentials array
             ArrayList<Credential> credentials = new ArrayList<>();
             if (!json.isNull("credentials")) {
                 JSONArray credArray = json.getJSONArray("credentials");
                 for (int i = 0; i < credArray.length(); i++) {
                     JSONObject credJson = credArray.getJSONObject(i);
-                    
+
                     String studentName = credJson.optString("studentName", "");
                     long dateMillis = credJson.getLong("dateAwarded");
                     Date dateAwarded = new Date(dateMillis);
@@ -125,14 +128,15 @@ public class JsonSerializer {
                     String institution = credJson.optString("institution", "");
                     String studentId = credJson.optString("studentId", "");
                     String credentialId = credJson.optString("credentialId", "");
-                    
-                    credentials.add(new Credential(studentName, dateAwarded, degree, institution, studentId, credentialId));
+
+                    credentials.add(
+                            new Credential(studentName, dateAwarded, degree, institution, studentId, credentialId));
                 }
             }
-            
+
             // Reconstruct block preserving the stored header values
             return reconstructBlock(index, timestamp, previousHash, hash, validatorId, signature, credentials);
-            
+
         } catch (JSONException e) {
             throw new RuntimeException("Failed to deserialize JSON to block: " + e.getMessage(), e);
         }
@@ -144,7 +148,7 @@ public class JsonSerializer {
      * @param chain the list of blocks to serialize
      * @return JSON array string representation of the chain
      * @throws IllegalArgumentException if chain is null
-     * @throws RuntimeException if serialization fails
+     * @throws RuntimeException         if serialization fails
      */
     public static String chainToJson(ArrayList<Block> chain) {
         if (chain == null) {
@@ -153,7 +157,7 @@ public class JsonSerializer {
 
         try {
             JSONArray jsonArray = new JSONArray();
-            
+
             for (Block block : chain) {
                 if (block != null) {
                     // Parse the block JSON string into a JSONObject
@@ -161,9 +165,9 @@ public class JsonSerializer {
                     jsonArray.put(blockObj);
                 }
             }
-            
+
             return jsonArray.toString();
-            
+
         } catch (JSONException e) {
             throw new RuntimeException("Failed to serialize chain to JSON", e);
         }
@@ -175,7 +179,7 @@ public class JsonSerializer {
      * @param jsonString the JSON array string to deserialize
      * @return the deserialized list of blocks
      * @throws IllegalArgumentException if jsonString is null or invalid
-     * @throws RuntimeException if deserialization fails
+     * @throws RuntimeException         if deserialization fails
      */
     public static ArrayList<Block> jsonToChain(String jsonString) {
         if (jsonString == null || jsonString.trim().isEmpty()) {
@@ -185,17 +189,68 @@ public class JsonSerializer {
         try {
             JSONArray jsonArray = new JSONArray(jsonString);
             ArrayList<Block> chain = new ArrayList<>();
-            
+
             for (int i = 0; i < jsonArray.length(); i++) {
                 JSONObject blockJson = jsonArray.getJSONObject(i);
                 chain.add(jsonToBlock(blockJson.toString()));
             }
-            
+
             return chain;
-            
+
         } catch (JSONException e) {
             throw new RuntimeException("Failed to deserialize JSON to chain: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Serialize a list of peers to a JSON array string.
+     *
+     * @param peers the list of peers to serialize
+     * @return JSON array string, or empty array if peers is null
+     */
+    public static String peerListToJson(List<Peer> peers) {
+        JSONArray array = new JSONArray();
+        if (peers == null) {
+            return array.toString();
+        }
+        for (Peer peer : peers) {
+            if (peer == null)
+                continue;
+            JSONObject obj = new JSONObject();
+            obj.put("nodeId", peer.getNodeId());
+            obj.put("host", peer.getAddress());
+            obj.put("port", peer.getPort());
+            array.put(obj);
+        }
+        return array.toString();
+    }
+
+    /**
+     * Deserialize a JSON array string to a list of peers.
+     *
+     * @param jsonString the JSON array string to deserialize
+     * @return list of Peer objects, or empty list on failure
+     */
+    public static ArrayList<Peer> jsonToPeerList(String jsonString) {
+        ArrayList<Peer> peers = new ArrayList<>();
+        if (jsonString == null || jsonString.trim().isEmpty()) {
+            return peers;
+        }
+        try {
+            JSONArray array = new JSONArray(jsonString);
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject obj = array.getJSONObject(i);
+                String nodeId = obj.optString("nodeId", null);
+                String host = obj.optString("host", null);
+                int port = obj.optInt("port", -1);
+                if (nodeId == null || host == null || port < 1)
+                    continue;
+                peers.add(new Peer(host, port, nodeId));
+            }
+        } catch (JSONException e) {
+            // malformed payload — return whatever we parsed so far
+        }
+        return peers;
     }
 
     /**
@@ -214,18 +269,18 @@ public class JsonSerializer {
     /**
      * Reconstruct a Block from stored data without recalculating hash or timestamp.
      * 
-     * @param index the block index
-     * @param timestamp the block timestamp
+     * @param index        the block index
+     * @param timestamp    the block timestamp
      * @param previousHash the previous block hash
-     * @param hash the block hash
-     * @param validatorId the validator ID
-     * @param signature the block signature
-     * @param credential the credential payload
+     * @param hash         the block hash
+     * @param validatorId  the validator ID
+     * @param signature    the block signature
+     * @param credential   the credential payload
      * @return reconstructed Block object with exact stored values
      */
-    private static Block reconstructBlock(int index, long timestamp, String previousHash, 
-                                         String hash, String validatorId, String signature, 
-                                         ArrayList<Credential> credentials) {
+    private static Block reconstructBlock(int index, long timestamp, String previousHash,
+            String hash, String validatorId, String signature,
+            ArrayList<Credential> credentials) {
         // Use the deserialization constructor to preserve exact hash and timestamp
         return new Block(index, timestamp, previousHash, hash, validatorId, signature, credentials);
     }

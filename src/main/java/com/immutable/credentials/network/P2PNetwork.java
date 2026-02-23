@@ -341,7 +341,15 @@ public class P2PNetwork {
 	 * <p>
 	 * Steps to implement:
 	 * </p>
+	 * <p>
+	 * Steps to implement:
+	 * </p>
 	 * <ol>
+	 * <li>Serialize the block to JSON using
+	 * {@code JsonSerializer.blockToJson(block)}</li>
+	 * <li>Create a {@link NetworkMessage} with type {@code PROPOSE_BLOCK}</li>
+	 * <li>Add the message ID to {@code seenMessageIds} to prevent echo</li>
+	 * <li>Call {@code broadcastMessage(message, null)} to send to all peers</li>
 	 * <li>Serialize the block to JSON using
 	 * {@code JsonSerializer.blockToJson(block)}</li>
 	 * <li>Create a {@link NetworkMessage} with type {@code PROPOSE_BLOCK}</li>
@@ -365,7 +373,16 @@ public class P2PNetwork {
 	 * <p>
 	 * Steps to implement:
 	 * </p>
+	 * <p>
+	 * Steps to implement:
+	 * </p>
 	 * <ol>
+	 * <li>Create a {@link JSONObject} payload with keys:
+	 * "blockIndex" (int), "blockHash" (String),
+	 * "voterId" ({@code node.getId()}), "approve" (boolean)</li>
+	 * <li>Create a {@link NetworkMessage} with type {@code BLOCK_VOTE}</li>
+	 * <li>Add the message ID to {@code seenMessageIds} to prevent echo</li>
+	 * <li>Call {@code broadcastMessage(message, null)} to send to all peers</li>
 	 * <li>Create a {@link JSONObject} payload with keys:
 	 * "blockIndex" (int), "blockHash" (String),
 	 * "voterId" ({@code node.getId()}), "approve" (boolean)</li>
@@ -380,6 +397,10 @@ public class P2PNetwork {
 	 */
 	public void broadcastBlockVote(int blockIndex, String blockHash, boolean approve) {
 		JSONObject payload = new JSONObject();
+		payload.put("blockIndex", blockIndex);
+		payload.put("blockHash", blockHash);
+		payload.put("voterId", node.getId());
+		payload.put("approve", approve);
 		payload.put("blockIndex", blockIndex);
 		payload.put("blockHash", blockHash);
 		payload.put("voterId", node.getId());
@@ -521,6 +542,10 @@ public class P2PNetwork {
 	}
 
 	/**
+	 * Handle a PROPOSE_BLOCK message — a validator is proposing a new block for
+	 * voting.
+	 * Deserializes the block and delegates to
+	 * {@code node.handleProposedBlock(block)}.
 	 * Handle a SUBMIT_CREDENTIAL message — a peer is broadcasting a credential
 	 * for mempool inclusion. Delegates to {@code node.handleIncomingCredential}.
 	 *
@@ -549,6 +574,7 @@ public class P2PNetwork {
 		String payload = message.getPayload().toString();
 		Block block = JsonSerializer.jsonToBlock(payload);
 		if (block == null || !block.isHashValid())
+		if (block == null || !block.isHashValid())
 			return;
 		node.handleProposedBlock(block);
 		broadcastMessage(message, connection.peer.getNodeId());
@@ -557,8 +583,11 @@ public class P2PNetwork {
 	/**
 	 * Handle a BLOCK_VOTE message — a validator is casting a vote on a proposed
 	 * block.
+	 * Handle a BLOCK_VOTE message — a validator is casting a vote on a proposed
+	 * block.
 	 * Extracts vote data from the payload and delegates to
 	 * {@code node.handleBlockVote(blockIndex, blockHash, voterId, approve)}.
+	 * 
 	 * 
 	 * @param message    the incoming BLOCK_VOTE message
 	 * @param connection the connection the message arrived on
@@ -566,6 +595,7 @@ public class P2PNetwork {
 	private void handleBlockVoteMessage(NetworkMessage message, PeerConnection connection) {
 		if (!(message.getPayload() instanceof JSONObject))
 			return;
+		JSONObject payload = (JSONObject) message.getPayload();
 		JSONObject payload = (JSONObject) message.getPayload();
 		int blockIndex = payload.getInt("blockIndex");
 		String blockHash = payload.getString("blockHash");

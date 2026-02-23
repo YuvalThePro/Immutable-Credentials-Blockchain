@@ -63,7 +63,7 @@ public class NetworkMessage implements Serializable {
          * Cast a vote (approve/reject) on a proposed block.
          * Sent by each validator after verifying a PROPOSE_BLOCK.
          * Payload: JSONObject with "blockIndex" (int), "blockHash" (String),
-         *          "voterId" (String), and "approve" (boolean).
+         * "voterId" (String), and "approve" (boolean).
          */
         BLOCK_VOTE,
 

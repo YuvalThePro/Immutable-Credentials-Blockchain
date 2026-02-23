@@ -2,10 +2,9 @@ package com.immutable.credentials.core;
 
 import java.io.IOException;
 import java.util.ArrayList;
+
+import java.security.PublicKey;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
@@ -57,29 +56,8 @@ public class Node {
     // ===== State =====
     private volatile boolean running;
 
-    // ===== Pending Credential Pool =====
-    /**
-     * Thread-safe pool of credentials waiting to be sealed into the next block.
-     * Credentials are added via {@link #submitCredential(Credential)} and drained
-     * by {@link #sealBlock()} when the scheduler fires and it is this node's turn.
-     */
-    private final ArrayList<Credential> pendingCredentials;
-
-    // ===== Block Scheduler =====
-    /**
-     * Scheduled executor that periodically triggers {@link #sealBlock()}.
-     * Only active on validator nodes. Started in {@link #start()}, shut down in {@link #stop()}.
-     */
-    private ScheduledExecutorService blockScheduler;
-
     // ===== Configuration =====
     private final String storageFileName;
-
-    /** Interval in milliseconds between block-sealing attempts by the scheduler. */
-    private static final long BLOCK_INTERVAL_MS = 30_000; // 30 seconds
-
-    /** Maximum number of credentials that can be packed into a single block. */
-    private static final int MAX_CREDENTIALS_PER_BLOCK = 50;
 
     /**
      * Create a validator node that can propose and sign blocks.
@@ -124,7 +102,6 @@ public class Node {
         this.blockchain = new Blockchain();
         this.storage = new BlockchainStorage();
         this.credentialIndex = new CredentialIndex();
-        this.pendingCredentials = new ArrayList<>();
         this.running = false;
     }
 
@@ -166,7 +143,6 @@ public class Node {
         this.blockchain = new Blockchain();
         this.storage = new BlockchainStorage();
         this.credentialIndex = new CredentialIndex();
-        this.pendingCredentials = new ArrayList<>();
         this.running = false;
     }
 
@@ -191,14 +167,6 @@ public class Node {
             network.start();
         }
 
-        // Start the block-sealing scheduler for validator nodes
-        if (isValidator()) {
-            blockScheduler = Executors.newSingleThreadScheduledExecutor();
-            blockScheduler.scheduleAtFixedRate(this::sealBlock,
-                    BLOCK_INTERVAL_MS, BLOCK_INTERVAL_MS, TimeUnit.MILLISECONDS);
-            Logger.log("Block scheduler started (interval: " + BLOCK_INTERVAL_MS + "ms)");
-        }
-
         running = true;
         Logger.log("Node " + nodeId + " started successfully" +
                 (isValidator() ? " [VALIDATOR]" : " [READ-ONLY]"));
@@ -218,17 +186,6 @@ public class Node {
 
         Logger.log("Stopping node: " + nodeId);
 
-        // Shut down the block-sealing scheduler
-        if (blockScheduler != null && !blockScheduler.isShutdown()) {
-            blockScheduler.shutdown();
-            try {
-                blockScheduler.awaitTermination(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                blockScheduler.shutdownNow();
-            }
-            Logger.log("Block scheduler stopped");
-        }
-
         if (network != null) {
             network.stop();
         }
@@ -239,137 +196,48 @@ public class Node {
     }
 
     /**
-     * Submit a single credential to the pending pool for future block inclusion.
-     * The credential will be batched with others and sealed into a block when
-     * the scheduler fires and this node is the current round-robin proposer.
+     * Issue a new credential by creating a signed block and broadcasting it to
+     * the network. Only validator nodes may call this method.
      *
-     * <p>Thread-safe: synchronizes on the pending pool to allow concurrent submissions.</p>
-     *
-     * <p>Steps to implement:</p>
-     * <ol>
-     *   <li>Validate that this node is a validator and is running</li>
-     *   <li>Validate the credential is not null</li>
-     *   <li>Check that the credential ID does not already exist in the blockchain
-     *       (use {@code blockchain.credentialIdExists()})</li>
-     *   <li>Synchronize on {@code pendingCredentials} and add the credential</li>
-     *   <li>Log the submission</li>
-     * </ol>
-     *
-     * @param credential the credential to add to the pending pool
-     * @throws IllegalStateException    if this node is not a validator or is not running
-     * @throws IllegalArgumentException if credential is null or already exists in the chain
+     * @param credentials the list of credentials to include in the new block
+     * @return the newly created and signed block
+     * @throws IllegalStateException    if this node is not a validator or is not
+     *                                  running
+     * @throws IllegalArgumentException if the credentials list is null or empty
+     * @throws Exception                if signing the block fails
      */
-    public void submitCredential(Credential credential) {
-        // TODO: implement
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
+    public Block issueCredential(ArrayList<Credential> credentials) throws Exception {
+        if (!isValidator()) {
+            throw new IllegalStateException("Only validator nodes can issue credentials");
+        }
+        if (!running) {
+            throw new IllegalStateException("Node is not running");
+        }
+        if (credentials == null || credentials.isEmpty()) {
+            throw new IllegalArgumentException("Credentials cannot be null or empty");
+        }
 
-    /**
-     * Attempt to seal pending credentials into a new block.
-     * Called periodically by the {@link #blockScheduler}.
-     *
-     * <p>This method implements the round-robin proposer check and block creation flow:</p>
-     * <ol>
-     *   <li>Check that the node is a running validator</li>
-     *   <li>Check that the pending pool is not empty (synchronized on {@code pendingCredentials})</li>
-     *   <li>Determine the next block index from {@code blockchain.getLatestBlock()}</li>
-     *   <li>Use {@code proofOfAuthority.getCurrentProposer(nextIndex)} to check if it's this
-     *       validator's turn — if not, return silently</li>
-     *   <li>Drain up to {@link #MAX_CREDENTIALS_PER_BLOCK} credentials from the pool
-     *       into a local list (synchronized)</li>
-     *   <li>Create an unsigned {@link Block} with the drained credentials</li>
-     *   <li>Sign the block using {@code validator.signBlock()}</li>
-     *   <li>Call {@code proofOfAuthority.proposeBlock(signedBlock)} to register it locally
-     *       and auto-vote YES</li>
-     *   <li>Broadcast a {@code PROPOSE_BLOCK} message via the network using
-     *       {@code network.broadcastProposedBlock(signedBlock)}</li>
-     *   <li>Log the proposal</li>
-     * </ol>
-     *
-     * <p>Note: The block is NOT added to the chain here. It will only be added
-     * once consensus is reached (enough BLOCK_VOTE approvals).</p>
-     */
-    public void sealBlock() {
-        // TODO: implement
-    }
+        Block latestBlock = blockchain.getLatestBlock();
+        String previousHash = latestBlock != null ? latestBlock.getHash() : "0";
+        int nextIndex = latestBlock != null ? latestBlock.getIndex() + 1 : 0;
 
-    /**
-     * Handle a proposed block received from another validator via PROPOSE_BLOCK message.
-     * Validates the block and casts a vote (approve/reject) back to the network.
-     *
-     * <p>Steps to implement:</p>
-     * <ol>
-     *   <li>Validate the block is not null</li>
-     *   <li>Verify it's the proposer's turn using
-     *       {@code proofOfAuthority.getCurrentProposer(block.getIndex())}</li>
-     *   <li>Validate the block against consensus rules using
-     *       {@code proofOfAuthority.enforceConsensusRules(block, previousBlock)}</li>
-     *   <li>Register the proposal locally via {@code proofOfAuthority.proposeBlock(block)}</li>
-     *   <li>If all checks pass, broadcast an approving BLOCK_VOTE via
-     *       {@code network.broadcastBlockVote(block.getIndex(), block.getHash(), true)}</li>
-     *   <li>If any check fails, broadcast a rejecting BLOCK_VOTE via
-     *       {@code network.broadcastBlockVote(block.getIndex(), block.getHash(), false)}</li>
-     *   <li>After voting, call {@link #checkAndFinalizeConsensus(int, String)} to see
-     *       if consensus was just reached</li>
-     * </ol>
-     *
-     * @param block the proposed block from a peer validator
-     * @throws IllegalArgumentException if block is null
-     */
-    public void handleProposedBlock(Block block) {
-        // TODO: implement
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
+        Block unsignedBlock = new Block(nextIndex, previousHash, credentials, validator.getValidatorId());
+        String signature = validator.signBlock(unsignedBlock);
+        Block signedBlock = new Block(unsignedBlock, signature);
 
-    /**
-     * Handle a BLOCK_VOTE message received from a peer validator.
-     * Records the vote and checks if consensus has been reached.
-     *
-     * <p>Steps to implement:</p>
-     * <ol>
-     *   <li>Look up the voting validator using
-     *       {@code proofOfAuthority.getValidatorById(voterId)}</li>
-     *   <li>Record the vote via
-     *       {@code proofOfAuthority.recordVote(blockIndex, blockHash, voterPublicKey, approve)}</li>
-     *   <li>Call {@link #checkAndFinalizeConsensus(int, String)} to see if we just
-     *       reached majority</li>
-     * </ol>
-     *
-     * @param blockIndex the index of the block being voted on
-     * @param blockHash  the hash of the proposed block
-     * @param voterId    the validator ID of the voter
-     * @param approve    true if the voter approves, false if they reject
-     * @throws IllegalArgumentException if blockHash or voterId is null
-     */
-    public void handleBlockVote(int blockIndex, String blockHash, String voterId, boolean approve) {
-        // TODO: implement
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
+        proofOfAuthority.proposeBlock(signedBlock);
 
-    /**
-     * Check if consensus has been reached for a block and finalize it if so.
-     * Called after every vote (from handleProposedBlock and handleBlockVote).
-     *
-     * <p>Steps to implement:</p>
-     * <ol>
-     *   <li>Call {@code proofOfAuthority.hasConsensus(blockIndex, blockHash)}</li>
-     *   <li>If false, return — still waiting for more votes</li>
-     *   <li>If true, retrieve the block via
-     *       {@code proofOfAuthority.getConsensusBlock(blockIndex)}</li>
-     *   <li>Add the block to the local chain: {@code blockchain.addBlock(block)}</li>
-     *   <li>Index the credentials: {@code credentialIndex.addCredentials(block.getCredentials())}</li>
-     *   <li>Persist to storage: {@code storage.saveBlock(block, storageFileName)}</li>
-     *   <li>Clean up PoA state: {@code proofOfAuthority.clearPendingBlocks(blockIndex)}</li>
-     *   <li>Broadcast the finalized block to non-validator peers:
-     *       {@code network.broadcastBlock(block)}</li>
-     *   <li>Log the finalization</li>
-     * </ol>
-     *
-     * @param blockIndex the block index to check consensus for
-     * @param blockHash  the block hash to check consensus for
-     */
-    private void checkAndFinalizeConsensus(int blockIndex, String blockHash) {
-        // TODO: implement
+        blockchain.addBlock(signedBlock);
+        credentialIndex.addCredentials(credentials);
+        storage.saveBlock(signedBlock, storageFileName);
+
+        if (network != null) {
+            network.broadcastBlock(signedBlock);
+        }
+
+        Logger.log("Credential issued by " + validator.getValidatorId() +
+                " in block #" + signedBlock.getIndex());
+        return signedBlock;
     }
 
     /**
@@ -488,22 +356,113 @@ public class Node {
         return validator;
     }
 
+    // ===== Blockchain Delegates =====
+    // These methods expose only what the P2P layer needs,
+    // keeping Blockchain and ProofOfAuthority as internal details.
+
     /**
-     * Get the local copy of the blockchain.
+     * Get the current height (number of blocks) of the local chain.
      *
-     * @return the blockchain
+     * @return the chain height
      */
-    public Blockchain getBlockchain() {
-        return blockchain;
+    public int getChainHeight() {
+        return blockchain.size();
     }
 
     /**
-     * Get the ProofOfAuthority consensus engine used by this node.
+     * Get the latest block in the local chain.
      *
-     * @return the proofOfAuthority
+     * @return the latest block, or null if the chain is empty
      */
-    public ProofOfAuthority getProofOfAuthority() {
-        return proofOfAuthority;
+    public Block getLatestBlock() {
+        return blockchain.getLatestBlock();
+    }
+
+    /**
+     * Get a block by its index in the local chain.
+     *
+     * @param index the block index
+     * @return the block at the given index, or null if not found
+     */
+    public Block getBlock(int index) {
+        return blockchain.getBlock(index);
+    }
+
+    /**
+     * Get the full ordered list of blocks in the local chain.
+     *
+     * @return the list of blocks
+     */
+    public ArrayList<Block> getChain() {
+        return blockchain.getChain();
+    }
+
+    /**
+     * Replace the local chain with a new list of blocks.
+     * Used during chain synchronization when a peer has a longer valid chain.
+     *
+     * @param newChain the replacement chain
+     */
+    public void replaceChain(ArrayList<Block> newChain) {
+        blockchain.replaceChain(newChain);
+    }
+
+    /**
+     * Validate an incoming chain against the authorized validator keys.
+     *
+     * @param incomingChain the chain to validate
+     * @return true if the incoming chain is valid
+     */
+    public boolean validateIncomingChain(Blockchain incomingChain) {
+        java.util.HashMap<String, PublicKey> map = new java.util.HashMap<>();
+        List<Validator> validators = proofOfAuthority.getAuthorizedValidators();
+        for (Validator v : validators) {
+            map.put(v.getValidatorId(), v.getPublicKey());
+        }
+        return incomingChain.validateChain(map);
+    }
+
+    /**
+     * Add a block directly to the local chain (bypasses consensus — used by the
+     * network layer after it has already performed signature and hash validation).
+     *
+     * @param block the validated block to append
+     */
+    public void addBlockToChain(Block block) {
+        blockchain.addBlock(block);
+        credentialIndex.addCredentials(block.getCredentials());
+    }
+
+    // ===== PoA Delegates =====
+
+    /**
+     * Get the list of authorized validators from the PoA consensus engine.
+     *
+     * @return the list of authorized validators
+     */
+    public List<Validator> getAuthorizedValidators() {
+        return proofOfAuthority.getAuthorizedValidators();
+    }
+
+    /**
+     * Look up a validator by their ID.
+     *
+     * @param validatorId the validator ID to look up
+     * @return the Validator, or null if not found
+     */
+    public Validator getValidatorById(String validatorId) {
+        return proofOfAuthority.getValidatorById(validatorId);
+    }
+
+    /**
+     * Validate a block's signature using the given public key.
+     *
+     * @param block     the block whose signature to verify
+     * @param publicKey the expected signer's public key
+     * @return true if the signature is valid
+     */
+    public boolean validateBlockSignature(Block block, PublicKey publicKey) {
+        return proofOfAuthority.validateBlockSignature(block, publicKey);
     }
 
     /**
@@ -531,17 +490,5 @@ public class Node {
      */
     public boolean isRunning() {
         return running;
-    }
-
-    /**
-     * Get the list of credentials currently waiting in the pending pool.
-     * Returns a defensive copy to prevent external modification.
-     *
-     * @return a copy of the pending credentials list
-     */
-    public ArrayList<Credential> getPendingCredentials() {
-        synchronized (pendingCredentials) {
-            return new ArrayList<>(pendingCredentials);
-        }
     }
 }

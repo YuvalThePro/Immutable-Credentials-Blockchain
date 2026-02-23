@@ -254,6 +254,54 @@ public class JsonSerializer {
     }
 
     /**
+     * Serialize a single Credential to a JSON string.
+     *
+     * @param credential the credential to serialize
+     * @return JSON string representation of the credential
+     * @throws IllegalArgumentException if credential is null
+     */
+    public static String credentialToJson(Credential credential) {
+        if (credential == null) {
+            throw new IllegalArgumentException("Credential cannot be null");
+        }
+        JSONObject json = new JSONObject();
+        json.put("studentName", sanitizeString(credential.getStudentName()));
+        json.put("dateAwarded",
+                credential.getDateAwarded() != null ? credential.getDateAwarded().getTime() : JSONObject.NULL);
+        json.put("degree", sanitizeString(credential.getDegree()));
+        json.put("institution", sanitizeString(credential.getInstitution()));
+        json.put("studentId", sanitizeString(credential.getStudentId()));
+        json.put("credentialId", sanitizeString(credential.getCredentialId()));
+        return json.toString();
+    }
+
+    /**
+     * Deserialize a JSON string into a Credential object.
+     *
+     * @param jsonString the JSON string to deserialize
+     * @return the deserialized Credential, or null on failure
+     * @throws IllegalArgumentException if jsonString is null or empty
+     */
+    public static Credential jsonToCredential(String jsonString) {
+        if (jsonString == null || jsonString.trim().isEmpty()) {
+            throw new IllegalArgumentException("JSON string cannot be null or empty");
+        }
+        try {
+            JSONObject json = new JSONObject(jsonString);
+            String studentName = json.optString("studentName", "");
+            long dateMillis = json.getLong("dateAwarded");
+            java.util.Date dateAwarded = new java.util.Date(dateMillis);
+            String degree = json.optString("degree", "");
+            String institution = json.optString("institution", "");
+            String studentId = json.optString("studentId", "");
+            String credentialId = json.optString("credentialId", "");
+            return new Credential(studentName, dateAwarded, degree, institution, studentId, credentialId);
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
+    /**
      * Sanitize string input to prevent injection attacks and limit size.
      * 
      * @param input the string to sanitize

@@ -63,7 +63,7 @@ public class NetworkMessage implements Serializable {
          * Cast a vote (approve/reject) on a proposed block.
          * Sent by each validator after verifying a PROPOSE_BLOCK.
          * Payload: JSONObject with "blockIndex" (int), "blockHash" (String),
-         *          "voterId" (String), and "approve" (boolean).
+         * "voterId" (String), and "approve" (boolean).
          */
         BLOCK_VOTE,
 
@@ -96,6 +96,15 @@ public class NetworkMessage implements Serializable {
 
         /** Send list of known peers in response to REQUEST_PEERS */
         SEND_PEERS,
+
+        // Credential Submission
+        /**
+         * Broadcast a credential for inclusion in the next block.
+         * Any node can send this. Only the current round-robin proposer
+         * accepts it into their mempool.
+         * Payload: JSONObject with credential fields.
+         */
+        SUBMIT_CREDENTIAL,
 
         // Reliability & Error Handling
         /** Acknowledgment that a message was received and processed */

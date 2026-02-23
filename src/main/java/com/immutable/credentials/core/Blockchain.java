@@ -1,13 +1,13 @@
 package com.immutable.credentials.core;
 
-import com.immutable.credentials.crypto.CryptoUtils;
-import com.immutable.credentials.model.Block;
-import com.immutable.credentials.model.Credential;
-
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+
+import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.model.Block;
+import com.immutable.credentials.model.Credential;
 
 /**
  * Simple in-memory blockchain for immutable credentials.
@@ -17,15 +17,30 @@ import java.util.HashMap;
 public class Blockchain {
 
     private ArrayList<Block> chain;
-    
+
     /**
-     * Create a new blockchain and initialize it with a genesis block.
+     * Create an empty blockchain with no blocks.
+     * Use {@link #initializeGenesis()} to add a genesis block for founding nodes,
+     * or synchronize from a peer to receive the chain including genesis.
      */
     public Blockchain() {
         this.chain = new ArrayList<>();
-        this.chain.add(createGenesisBlock());
     }
-    
+
+    /**
+     * Initialize this blockchain with a genesis block.
+     * Should only be called once by the founding node that creates the network.
+     * Other nodes receive the genesis block (and the rest of the chain) via sync.
+     *
+     * @throws IllegalStateException if the chain already contains blocks
+     */
+    public void initializeGenesis() {
+        if (!chain.isEmpty()) {
+            throw new IllegalStateException("Cannot initialize genesis on a non-empty chain");
+        }
+        chain.add(createGenesisBlock());
+    }
+
     /**
      * Create the genesis block for a fresh chain.
      * 
@@ -33,17 +48,18 @@ public class Blockchain {
      */
     private Block createGenesisBlock() {
         Credential genesisCredential = new Credential(
-            "Genesis Student",
-            new Date(0),
-            "Genesis Degree",
-            "System",
-            "GENESIS-000",
-            "GENESIS-CRED-000"
-        );
-        
-        return new Block(0, "0", genesisCredential, "SYSTEM","GENESIS");
+                "Genesis Student",
+                new Date(0),
+                "Genesis Degree",
+                "System",
+                "GENESIS-000",
+                "GENESIS-CRED-000");
+
+        ArrayList<Credential> genesisCredentials = new ArrayList<>();
+        genesisCredentials.add(genesisCredential);
+        return new Block(0, "0", genesisCredentials, "SYSTEM", "GENESIS");
     }
-    
+
     /**
      * Create a blockchain by copying an existing list of blocks.
      * 
@@ -57,7 +73,7 @@ public class Blockchain {
             }
         }
     }
-    
+
     /**
      * Append a block to the end of the chain.
      * Does not perform validation - caller should validate before adding.
@@ -67,7 +83,7 @@ public class Blockchain {
     public void addBlock(Block block) {
         this.chain.add(block);
     }
-    
+
     /**
      * Retrieve a block by its index.
      * 
@@ -80,7 +96,7 @@ public class Blockchain {
         }
         return chain.get(index);
     }
-    
+
     /**
      * Get the most recent block in the chain.
      * 
@@ -92,7 +108,7 @@ public class Blockchain {
         }
         return chain.get(chain.size() - 1);
     }
-    
+
     /**
      * Search for blocks whose credential contains the given student ID.
      * 
@@ -107,14 +123,20 @@ public class Blockchain {
         }
 
         for (Block block : chain) {
-            if (block.getCredential() != null && studentId.equals(block.getCredential().getStudentId())) {
-                results.add(block);
+            ArrayList<Credential> credentials = block.getCredentials();
+            if (credentials != null) {
+                for (Credential cred : credentials) {
+                    if (studentId.equals(cred.getStudentId())) {
+                        results.add(block);
+                        break; // Found match in this block, move to next block
+                    }
+                }
             }
         }
 
         return results;
     }
-    
+
     /**
      * Get the number of blocks in the chain.
      *
@@ -123,7 +145,7 @@ public class Blockchain {
     public int size() {
         return chain.size();
     }
-    
+
     /**
      * Get a copy of the entire chain.
      *
@@ -132,10 +154,11 @@ public class Blockchain {
     public ArrayList<Block> getChain() {
         return new ArrayList<>(chain);
     }
-    
+
     /**
      * Validate the entire blockchain against consensus rules.
-     * Checks index ordering, hash linkage, hash validity, timestamps, and signatures.
+     * Checks index ordering, hash linkage, hash validity, timestamps, and
+     * signatures.
      * 
      * @param map mapping from validator ID to their public key
      * @return true if the chain is valid, false otherwise
@@ -180,12 +203,12 @@ public class Blockchain {
             if (pk == null) {
                 return false;
             }
-            
+
             String signature = current.getSignature();
             if (signature == null || signature.trim().isEmpty()) {
                 return false;
             }
-            
+
             if (!CryptoUtils.verifySignature(current.getHash(), signature, pk)) {
                 return false;
             }
@@ -194,6 +217,15 @@ public class Blockchain {
         return true;
     }
 
+    /**
+     * Replace the entire chain with a new one.
+     * Caller is responsible for validating the new chain before calling this.
+     *
+     * @param newChain the new chain to replace with
+     */
+    public synchronized void replaceChain(ArrayList<Block> newChain) {
+        this.chain = new ArrayList<>(newChain);
+    }
 
     /**
      * Check if a credential ID already exists in the blockchain.
@@ -205,12 +237,16 @@ public class Blockchain {
         if (credentialId == null) {
             return false;
         }
-        
+
         for (Block block : chain) {
-            if (block.getCredential() != null && 
-                block.getCredential().getCredentialId() != null &&
-                credentialId.equals(block.getCredential().getCredentialId())) {
-                return true;
+            ArrayList<Credential> credentials = block.getCredentials();
+            if (credentials != null) {
+                for (Credential cred : credentials) {
+                    if (cred.getCredentialId() != null &&
+                            credentialId.equals(cred.getCredentialId())) {
+                        return true;
+                    }
+                }
             }
         }
         return false;

@@ -2,20 +2,22 @@ package com.immutable.credentials.consensus;
 
 import com.immutable.credentials.model.Block;
 import java.security.PublicKey;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Implements Proof-of-Authority (PoA) consensus mechanism.
- * Manages authorized validators and enforces consensus rules for block acceptance.
+ * Manages authorized validators and enforces consensus rules for block
+ * acceptance.
  */
 public class ProofOfAuthority {
-    
+
     private final List<Validator> authorizedValidators;
     private final Map<Integer, List<Block>> pendingBlocks;
     private final Map<Integer, Map<String, Boolean>> votes;
-    
+
     /**
      * Initialize the PoA consensus engine with authorized validators.
      * 
@@ -30,7 +32,7 @@ public class ProofOfAuthority {
         this.pendingBlocks = new java.util.HashMap<>();
         this.votes = new java.util.HashMap<>();
     }
-    
+
     /**
      * Check if a validator is authorized to propose or vote on blocks.
      * 
@@ -39,12 +41,12 @@ public class ProofOfAuthority {
      * @throws IllegalArgumentException if validatorPublicKey is null
      */
     public boolean isAuthorizedValidator(PublicKey validatorPublicKey) throws IllegalArgumentException {
-        if(validatorPublicKey == null)
+        if (validatorPublicKey == null)
             throw new IllegalArgumentException("Public key is Null");
-        
-        if(authorizedValidators == null || authorizedValidators.isEmpty())
+
+        if (authorizedValidators == null || authorizedValidators.isEmpty())
             return false;
-        
+
         for (Validator validator : authorizedValidators) {
             if (validator.getPublicKey() != null && validator.getPublicKey().equals(validatorPublicKey)) {
                 if (validator.isActive()) {
@@ -55,7 +57,7 @@ public class ProofOfAuthority {
 
         return false;
     }
-    
+
     /**
      * Get the list of all authorized validators.
      * 
@@ -65,11 +67,11 @@ public class ProofOfAuthority {
         if (authorizedValidators == null || authorizedValidators.isEmpty()) {
             return Collections.emptyList();
         }
-    
+
         return Collections.unmodifiableList(authorizedValidators);
 
     }
-    
+
     /**
      * Retrieve a specific validator by their public key.
      * 
@@ -77,21 +79,19 @@ public class ProofOfAuthority {
      * @return the Validator object if found, null otherwise
      * @throws IllegalArgumentException if publicKey is null
      */
-    public Validator getValidatorByPublicKey(PublicKey publicKey) throws IllegalArgumentException  {
-        if(publicKey == null)
-        {
+    public Validator getValidatorByPublicKey(PublicKey publicKey) throws IllegalArgumentException {
+        if (publicKey == null) {
             throw new IllegalArgumentException("Public key is Null");
         }
 
-        for(Validator validator: authorizedValidators)
-        {
-            if(validator.getPublicKey() != null && validator.getPublicKey().equals(publicKey))
+        for (Validator validator : authorizedValidators) {
+            if (validator.getPublicKey() != null && validator.getPublicKey().equals(publicKey))
                 return validator;
         }
 
         return null;
     }
-    
+
     /**
      * Retrieve a specific validator by their validator ID.
      * 
@@ -103,20 +103,20 @@ public class ProofOfAuthority {
         if (validatorId == null) {
             throw new IllegalArgumentException("Validator ID is null");
         }
-        
+
         if (authorizedValidators == null || authorizedValidators.isEmpty()) {
             return null;
         }
-        
+
         for (Validator validator : authorizedValidators) {
             if (validator.getValidatorId().equals(validatorId)) {
                 return validator;
             }
         }
-        
+
         return null;
     }
-    
+
     /**
      * Register a proposed block from a validator.
      * Validates that the proposer is authorized before accepting the block.
@@ -130,46 +130,45 @@ public class ProofOfAuthority {
         if (block == null) {
             throw new IllegalArgumentException("Block is null");
         }
-        
+
         String validatorId = block.getValidatorId();
-        
+
         Validator validator = getValidatorById(validatorId);
-        
+
         if (validator == null) {
-            return false; 
+            return false;
         }
-        
+
         PublicKey validatorPublicKey = validator.getPublicKey();
-        
+
         if (!isAuthorizedValidator(validatorPublicKey)) {
-            return false; 
+            return false;
         }
-        
+
         if (!validateBlockSignature(block, validatorPublicKey)) {
-            return false; 
+            return false;
         }
-        
+
         int blockIndex = block.getIndex();
-        
+
         if (!pendingBlocks.containsKey(blockIndex)) {
             pendingBlocks.put(blockIndex, new java.util.ArrayList<>());
         }
         pendingBlocks.get(blockIndex).add(block);
-        
+
         if (!votes.containsKey(blockIndex)) {
             votes.put(blockIndex, new java.util.HashMap<>());
         }
-        
+
         votes.get(blockIndex).put(validatorId, true);
-        
-        return true; 
+
+        return true;
     }
-    
 
     /**
      * Validate that a block's signature matches the claimed validator.
      * 
-     * @param block the block to validate
+     * @param block              the block to validate
      * @param validatorPublicKey the public key of the claimed validator
      * @return true if signature is valid, false otherwise
      * @throws IllegalArgumentException if block or validatorPublicKey is null
@@ -177,62 +176,60 @@ public class ProofOfAuthority {
     public boolean validateBlockSignature(Block block, PublicKey validatorPublicKey) {
         return block.verifySignature(validatorPublicKey);
     }
-    
+
     /**
      * Record a validator's vote on a proposed block.
      * 
-     * @param blockIndex the index of the block being voted on
-     * @param blockHash the hash of the specific block candidate
+     * @param blockIndex         the index of the block being voted on
+     * @param blockHash          the hash of the specific block candidate
      * @param validatorPublicKey the public key of the voting validator
-     * @param approve true to approve, false to reject
+     * @param approve            true to approve, false to reject
      * @return true if vote was recorded, false if validator not authorized
      * @throws IllegalArgumentException if validatorPublicKey or blockHash is null
      */
-    public boolean recordVote(int blockIndex, String blockHash, PublicKey validatorPublicKey, boolean approve) 
-    throws IllegalArgumentException{
-        if(validatorPublicKey == null)
+    public boolean recordVote(int blockIndex, String blockHash, PublicKey validatorPublicKey, boolean approve)
+            throws IllegalArgumentException {
+        if (validatorPublicKey == null)
             throw new IllegalArgumentException("ValidatorPublicKey is Null");
-        
-        if(blockHash == null)
+
+        if (blockHash == null)
             throw new IllegalArgumentException("BlockHash is Null");
-        if(blockIndex < 0)
+        if (blockIndex < 0)
             return false;
-        
 
         Validator v = getValidatorByPublicKey(validatorPublicKey);
-        
-        if(v == null)
+
+        if (v == null)
             return false;
-        
-        if(!isAuthorizedValidator(validatorPublicKey))
+
+        if (!isAuthorizedValidator(validatorPublicKey))
             return false;
-        
-        if(!votes.containsKey(blockIndex))
-        {
+
+        if (!votes.containsKey(blockIndex)) {
             votes.put(blockIndex, new java.util.HashMap<>());
         }
-        
+
         votes.get(blockIndex).put(v.getValidatorId(), approve);
-        
+
         return true;
     }
-    
+
     /**
      * Check if consensus has been reached for a specific block.
      * Consensus requires majority approval (>50% of authorized validators).
      * 
      * @param blockIndex the index of the block to check
-     * @param blockHash the hash of the specific block candidate
+     * @param blockHash  the hash of the specific block candidate
      * @return true if consensus reached, false otherwise
      * @throws IllegalArgumentException if blockHash is null
      */
     public boolean hasConsensus(int blockIndex, String blockHash) throws IllegalArgumentException {
         int approvalCount = getVoteCount(blockIndex, blockHash);
         int requiredVotes = getRequiredVotes();
-        
-        return approvalCount > requiredVotes;
+
+        return approvalCount >= requiredVotes;
     }
-    
+
     /**
      * Get the block that achieved consensus for a given index.
      * 
@@ -249,16 +246,18 @@ public class ProofOfAuthority {
         }
 
         for (Block block : pendingBlocks.get(blockIndex)) {
-            if (block == null) continue;
+            if (block == null)
+                continue;
             String blockHash = block.getHash();
-            if (blockHash == null) continue;
+            if (blockHash == null)
+                continue;
             if (hasConsensus(blockIndex, blockHash)) {
                 return block;
             }
         }
         return null;
     }
-    
+
     /**
      * Clear pending blocks and votes for a specific block index after consensus.
      * 
@@ -286,11 +285,11 @@ public class ProofOfAuthority {
             votes.remove(blockIndex);
         }
     }
-    
+
     /**
      * Validate that a block meets all PoA consensus rules.
      * 
-     * @param block the block to validate
+     * @param block         the block to validate
      * @param previousBlock the previous block in the chain (null for genesis)
      * @return true if all consensus rules are satisfied, false otherwise
      * @throws IllegalArgumentException if block is null
@@ -332,11 +331,11 @@ public class ProofOfAuthority {
 
         return true;
     }
-    
+
     /**
      * Determine if a block should be accepted into the blockchain.
      * 
-     * @param block the block to evaluate
+     * @param block         the block to evaluate
      * @param previousBlock the previous block in the chain (null for genesis)
      * @return true if the block should be accepted, false otherwise
      * @throws IllegalArgumentException if block is null
@@ -361,7 +360,7 @@ public class ProofOfAuthority {
 
         return consensus.getHash() != null && consensus.getHash().equals(block.getHash());
     }
-    
+
     /**
      * Get all pending blocks for a specific block index.
      * 
@@ -376,12 +375,12 @@ public class ProofOfAuthority {
 
         return Collections.unmodifiableList(pendingBlocks.get(blockIndex));
     }
-    
+
     /**
      * Get vote count for a specific block candidate.
      * 
      * @param blockIndex the index of the block
-     * @param blockHash the hash of the specific block candidate
+     * @param blockHash  the hash of the specific block candidate
      * @return number of approval votes, or 0 if no votes yet
      * @throws IllegalArgumentException if blockHash is null
      */
@@ -389,21 +388,21 @@ public class ProofOfAuthority {
         if (blockHash == null) {
             throw new IllegalArgumentException("BlockHash is null");
         }
-        
+
         if (votes == null || !votes.containsKey(blockIndex)) {
-            return 0; 
+            return 0;
         }
-        
+
         int approvalCount = 0;
         for (Boolean vote : votes.get(blockIndex).values()) {
             if (vote != null && vote) {
                 approvalCount++;
             }
         }
-        
+
         return approvalCount;
     }
-    
+
     /**
      * Calculate the minimum number of votes required for consensus.
      * Majority is defined as more than 50% of authorized validators.
@@ -412,5 +411,32 @@ public class ProofOfAuthority {
      */
     public int getRequiredVotes() {
         return (authorizedValidators.size() + 1) / 2;
+    }
+
+    /**
+     * Determine which validator should propose the next block using round-robin.
+     * The proposer is selected by:
+     * {@code blockIndex % authorizedValidators.size()}.
+     * This ensures fair rotation among all authorized validators.
+     * 
+     * @param blockIndex the index of the block to be proposed (must be >= 0)
+     * @return the Validator whose turn it is to propose, or null if no validators
+     *         exist
+     * @throws IllegalArgumentException if blockIndex is negative
+     */
+    public Validator getCurrentProposer(int blockIndex) throws IllegalArgumentException {
+        if (blockIndex < 0)
+            throw new IllegalArgumentException("blockIndex must be >= 0");
+        if (authorizedValidators == null || authorizedValidators.isEmpty())
+            return null;
+        List<Validator> activeValidators = new ArrayList<>();
+        for (Validator v : authorizedValidators) {
+            if (v.isActive())
+                activeValidators.add(v);
+        }
+        if (activeValidators.isEmpty())
+            return null;
+        return activeValidators.get(blockIndex % activeValidators.size());
+
     }
 }

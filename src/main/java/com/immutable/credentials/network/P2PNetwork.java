@@ -596,7 +596,6 @@ public class P2PNetwork {
 		if (!(message.getPayload() instanceof JSONObject))
 			return;
 		JSONObject payload = (JSONObject) message.getPayload();
-		JSONObject payload = (JSONObject) message.getPayload();
 		int blockIndex = payload.getInt("blockIndex");
 		String blockHash = payload.getString("blockHash");
 		String voterId = payload.getString("voterId");

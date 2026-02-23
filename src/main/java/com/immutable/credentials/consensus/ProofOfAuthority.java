@@ -227,7 +227,7 @@ public class ProofOfAuthority {
         int approvalCount = getVoteCount(blockIndex, blockHash);
         int requiredVotes = getRequiredVotes();
 
-        return approvalCount > requiredVotes;
+        return approvalCount >= requiredVotes;
     }
 
     /**

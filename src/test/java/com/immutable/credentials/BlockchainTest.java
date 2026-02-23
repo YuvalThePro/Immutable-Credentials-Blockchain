@@ -28,6 +28,7 @@ public class BlockchainTest {
     @Before
     public void setUp() {
         blockchain = new Blockchain();
+        blockchain.initializeGenesis();
         validatorKeyPair = CryptoUtils.generateKeyPair();
         
         validatorKeys = new HashMap<>();

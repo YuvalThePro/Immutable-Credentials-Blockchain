@@ -19,11 +19,26 @@ public class Blockchain {
     private ArrayList<Block> chain;
 
     /**
-     * Create a new blockchain and initialize it with a genesis block.
+     * Create an empty blockchain with no blocks.
+     * Use {@link #initializeGenesis()} to add a genesis block for founding nodes,
+     * or synchronize from a peer to receive the chain including genesis.
      */
     public Blockchain() {
         this.chain = new ArrayList<>();
-        this.chain.add(createGenesisBlock());
+    }
+
+    /**
+     * Initialize this blockchain with a genesis block.
+     * Should only be called once by the founding node that creates the network.
+     * Other nodes receive the genesis block (and the rest of the chain) via sync.
+     *
+     * @throws IllegalStateException if the chain already contains blocks
+     */
+    public void initializeGenesis() {
+        if (!chain.isEmpty()) {
+            throw new IllegalStateException("Cannot initialize genesis on a non-empty chain");
+        }
+        chain.add(createGenesisBlock());
     }
 
     /**

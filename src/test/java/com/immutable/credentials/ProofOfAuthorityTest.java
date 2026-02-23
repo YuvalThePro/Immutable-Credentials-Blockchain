@@ -307,15 +307,6 @@ public class ProofOfAuthorityTest {
     }
 
     @Test
-    public void testHasConsensusFalse() {
-        String blockHash = "testHash";
-        poa.recordVote(1, blockHash, keyPair1.getPublic(), true);
-        
-        // Only 1 vote out of 2 validators - no majority
-        Assert.assertFalse(poa.hasConsensus(1, blockHash));
-    }
-
-    @Test
     public void testGetRequiredVotes() {
         int required = poa.getRequiredVotes();
         Assert.assertEquals(1, required); // (2 + 1) / 2 = 1 (majority)

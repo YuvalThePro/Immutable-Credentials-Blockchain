@@ -43,6 +43,7 @@ public class StorageTest {
     @Before
     public void setUp() {
         blockchain = new Blockchain();
+        blockchain.initializeGenesis();
         storage = new BlockchainStorage();
         index = new CredentialIndex();
         validatorKeyPair = CryptoUtils.generateKeyPair();

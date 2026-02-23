@@ -174,6 +174,18 @@ public class Node {
     }
 
     /**
+     * Initialize this node as the founding node of the network.
+     * Creates the genesis block on the local chain. Must be called before
+     * {@link #start()} and only on the very first node in the network.
+     * All other nodes receive the genesis block via chain synchronization.
+     *
+     * @throws IllegalStateException if the blockchain already has blocks
+     */
+    public void initializeAsFoundingNode() {
+        blockchain.initializeGenesis();
+    }
+
+    /**
      * Start this node: load the blockchain from persistent storage, rebuild the
      * credential index, and bring up the P2P network listener.
      *
@@ -368,12 +380,7 @@ public class Node {
             String signature = validator.signBlock(unsignedBlock);
             Block signedBlock = new Block(unsignedBlock, signature);
 
-            // Register in PoA (casts the proposer's own approval vote)
-            proofOfAuthority.proposeBlock(signedBlock);
-
-            if (network != null) {
-                network.broadcastProposedBlock(signedBlock);
-            }
+            handleProposedBlock(signedBlock);
 
             Logger.log("Proposed block #" + nextIndex + " with " + batch.size() + " credential(s)");
         } catch (Exception e) {
@@ -547,7 +554,8 @@ public class Node {
 
     /**
      * Load the blockchain from disk.
-     * Falls back to a fresh genesis chain if no stored file is found.
+     * Falls back to keeping the current in-memory chain if no stored file is found.
+     * This preserves the genesis block on a founding node's first run.
      */
     private void loadBlockchain() {
         try {
@@ -555,8 +563,10 @@ public class Node {
             Logger.log("Loaded blockchain from " + storageFileName +
                     " (" + blockchain.size() + " blocks)");
         } catch (IOException e) {
-            Logger.warn("Could not load blockchain from disk, starting fresh: " + e.getMessage());
-            blockchain = new Blockchain();
+            // No stored chain found. Keep the current in-memory chain.
+            // - Founding node: already has genesis from initializeAsFoundingNode()
+            // - Joining node: empty chain, will sync from peers
+            Logger.warn("Could not load blockchain from disk, keeping current state: " + e.getMessage());
         }
     }
 

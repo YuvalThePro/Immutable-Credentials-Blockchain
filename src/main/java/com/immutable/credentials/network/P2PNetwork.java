@@ -284,6 +284,14 @@ public class P2PNetwork {
 
 			System.out.println("[P2PNetwork] Handshake complete with " + peer.getFullAddress() + " [" + peerId + "]");
 
+			// Trigger initial chain sync by exchanging heights with the new peer.
+			// This ensures joining nodes receive the full chain (including genesis)
+			// from existing nodes immediately after connecting.
+			JSONObject heightPayload = new JSONObject();
+			heightPayload.put("currentHeight", node.getChainHeight());
+			NetworkMessage heightMsg = new NetworkMessage(MessageType.CHAIN_HEIGHT, node.getId(), heightPayload);
+			sendMessage(connection, heightMsg);
+
 			connectionPool.submit(() -> {
 				try {
 					while (running && connection.isActive()) {
@@ -631,6 +639,11 @@ public class P2PNetwork {
 		if (block == null || !block.isHashValid())
 			return;
 		Block last = node.getLatestBlock();
+		if (last == null) {
+			// Empty chain — need full sync to get genesis and all blocks
+			syncChain();
+			return;
+		}
 		if (block.getIndex() != last.getIndex() + 1) {
 			syncChain();
 			return;
@@ -719,6 +732,11 @@ public class P2PNetwork {
 		if (block == null || !block.isHashValid())
 			return;
 		Block last = node.getLatestBlock();
+		if (last == null) {
+			// Empty chain — need full sync to get genesis and all blocks
+			syncChain();
+			return;
+		}
 		if (block.getIndex() != last.getIndex() + 1)
 			return;
 		if (!block.getPreviousHash().equals(last.getHash()))
@@ -750,6 +768,14 @@ public class P2PNetwork {
 			sendMessage(connection, request);
 			System.out.println("[P2PNetwork] Peer " + connection.peer.getNodeId() + " is ahead (" + peerHeight + " vs "
 					+ node.getChainHeight() + "), requesting chain");
+		} else if (peerHeight < node.getChainHeight()) {
+			// We're ahead — push our chain to the lagging peer so they can sync
+			String chainJson = JsonSerializer.chainToJson(node.getChain());
+			JSONArray chainArray = new JSONArray(chainJson);
+			NetworkMessage response = new NetworkMessage(MessageType.SEND_CHAIN, node.getId(), chainArray);
+			sendMessage(connection, response);
+			System.out.println("[P2PNetwork] Pushing chain (height=" + node.getChainHeight() + ") to lagging peer "
+					+ connection.peer.getNodeId());
 		}
 	}
 

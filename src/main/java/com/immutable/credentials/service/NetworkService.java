@@ -24,11 +24,6 @@ public class NetworkService {
     /**
      * Retrieve the list of peers that are currently connected to this node.
      *
-     * <p>
-     * Returns a snapshot; the list is not updated automatically as new peers
-     * connect or disconnect.
-     * </p>
-     *
      * @return a non-null, possibly empty, list of {@link Peer} objects
      */
     public List<Peer> getConnectedPeers() {

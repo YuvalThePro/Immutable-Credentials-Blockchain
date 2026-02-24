@@ -28,11 +28,6 @@ public class BlockchainService {
     /**
      * Retrieve a snapshot of all blocks currently on the local chain.
      *
-     * <p>
-     * The returned list is a defensive copy; modifications to it
-     * do not affect the underlying blockchain.
-     * </p>
-     *
      * @return a non-null, possibly empty, ordered list of {@link Block} objects
      *         starting from the genesis block (index 0)
      */
@@ -77,10 +72,6 @@ public class BlockchainService {
      * Validate the integrity of the entire local chain against the known
      * validator public keys.
      *
-     * <p>
-     * This is an expensive operation for large chains; consider running it
-     * on a background thread.
-     * </p>
      *
      * @return {@code true} if the chain passes all integrity checks;
      *         {@code false} if any block has an invalid hash, broken link,

@@ -110,17 +110,26 @@ public class NodeService {
     }
 
     /**
-     * Report whether this node is a validator node that can propose and
-     * sign blocks.
+     * Report whether this node is an accredited university (validator) node.
      *
      * <p>
-     * Used by the UI to decide whether to enable the Issue Credential
-     * form and the validator-specific menu items.
+     * In this network, <em>validator node = university node</em>.
+     * Only university nodes may:
+     * </p>
+     * <ul>
+     * <li>Submit credentials via {@link CredentialService#issueCredential}</li>
+     * <li>Propose and sign blocks</li>
+     * <li>Cast votes in Proof-of-Authority consensus</li>
+     * </ul>
+     *
+     * <p>
+     * Read-only nodes (student portals, employer verifiers, public explorers)
+     * return {@code false} here and must have the Issue Credential panel disabled.
      * </p>
      *
-     * @return {@code true} if the node has a
-     *         {@link com.immutable.credentials.consensus.Validator}
-     *         identity; {@code false} for read-only nodes
+     * @return {@code true} if this node holds a
+     *         {@link com.immutable.credentials.consensus.Validator} identity
+     *         (i.e. it is a university node); {@code false} otherwise
      */
     public boolean isValidator() {
         return false;

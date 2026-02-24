@@ -25,11 +25,11 @@ public class Validator {
     /**
      * Create a new validator with complete identification and keys.
      * 
-     * @param validatorId the unique identifier for this validator
+     * @param validatorId   the unique identifier for this validator
      * @param validatorName the human-readable name of the validator
-     * @param publicKey the public key for signature verification
-     * @param privateKey the private key for signing blocks (kept secure)
-     * @param institution the associated university or institution
+     * @param publicKey     the public key for signature verification
+     * @param privateKey    the private key for signing blocks (kept secure)
+     * @param institution   the associated university or institution
      */
     public Validator(String validatorId, String validatorName,
             PublicKey publicKey, PrivateKey privateKey,
@@ -48,8 +48,9 @@ public class Validator {
      * 
      * @param block the block to sign
      * @return the Base64-encoded signature
-     * @throws SignatureException if signing fails
-     * @throws IllegalStateException if validator lacks private key or is inactive
+     * @throws SignatureException       if signing fails
+     * @throws IllegalStateException    if validator lacks private key or is
+     *                                  inactive
      * @throws IllegalArgumentException if block is null
      */
     public String signBlock(Block block) throws SignatureException {
@@ -176,8 +177,7 @@ public class Validator {
                 validatorName,
                 institution,
                 isActive,
-                (privateKey != null)
-        );
+                (privateKey != null));
 
     }
 

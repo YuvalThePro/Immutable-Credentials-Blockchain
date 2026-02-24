@@ -25,6 +25,16 @@ import java.util.List;
  * {@link com.immutable.credentials.storage.CredentialIndex} details</li>
  * </ul>
  *
+ * <h2>University = Validator model</h2>
+ * <p>
+ * In this network, only accredited universities run validator nodes.
+ * A validator node holds the university's private key, participates in
+ * Proof-of-Authority consensus, and is the <em>only</em> node type
+ * permitted to submit credentials. Read-only nodes (student portals,
+ * employer verifiers, public explorers) may verify credentials but
+ * cannot issue them.
+ * </p>
+ *
  * <p>
  * All methods are safe to call from the JavaFX Application Thread; long-running
  * operations should be wrapped in a {@code Task} by the calling panel.
@@ -47,7 +57,8 @@ public class CredentialService {
     }
 
     /**
-     * Issue a new academic credential and submit it to the network.
+     * Submit a new academic credential to the network for inclusion in a future
+     * block.
      *
      * <p>
      * This method performs client-side validation, constructs a
@@ -56,24 +67,33 @@ public class CredentialService {
      * </p>
      *
      * <p>
-     * <b>Precondition:</b> the node must be running and must be a validator
-     * node. Call {@link NodeService#isValidator()} before invoking this method.
+     * <b>Precondition – university (validator) node only.</b>
+     * Only an accredited institution running a validator node may call this
+     * method. The submitted credential is authenticated by the university's
+     * identity
+     * ({@link com.immutable.credentials.consensus.Validator#getInstitution()})
+     * and the block that eventually seals it will be signed with the
+     * university's private key and approved by a majority of other
+     * validator-universities. Read-only nodes (student portals, employer
+     * verifiers) must not call this method.
      * </p>
      *
      * @param studentName  the full name of the student; must not be blank
      * @param studentId    the unique student identifier; must not be blank
      * @param degree       the degree or certification earned; must not be blank
-     * @param institution  the awarding institution; must not be blank
+     * @param institution  the awarding institution; must match the validator's
+     *                     own institution name; must not be blank
      * @param dateAwarded  the date the credential was awarded; must not be
      *                     {@code null}
      * @param credentialId a caller-supplied unique credential ID; must not be blank
      * @throws IllegalArgumentException if any parameter is null, blank, or invalid
-     * @throws IllegalStateException    if the node is not running or not a
-     *                                  validator
+     * @throws IllegalStateException    if the node is not running or is not a
+     *                                  validator (university) node
      */
     public void issueCredential(String studentName, String studentId,
             String degree, String institution,
             LocalDate dateAwarded, String credentialId) {
+
     }
 
     /**
@@ -125,15 +145,19 @@ public class CredentialService {
     }
 
     /**
-     * Report whether the currently running node is a validator node and therefore
-     * authorised to issue credentials.
+     * Report whether this node is an accredited university (validator) node
+     * and is therefore authorised to submit credentials, seal blocks, and
+     * cast consensus votes.
      *
      * <p>
-     * Convenience helper used by UI panels to decide whether to enable or
-     * disable the issue form.
+     * This flag <em>gates credential submission</em>: the
+     * {@code IssueCredentialPanel} must be disabled entirely for non-validator
+     * (read-only) nodes such as student portals and employer verifiers.
      * </p>
      *
-     * @return {@code true} if the node is a validator; {@code false} otherwise
+     * @return {@code true} if the node has a
+     *         {@link com.immutable.credentials.consensus.Validator} identity
+     *         (i.e. it is a university node); {@code false} for read-only nodes
      */
     public boolean isValidatorNode() {
         return false;

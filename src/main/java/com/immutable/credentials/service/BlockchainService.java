@@ -1,5 +1,6 @@
 package com.immutable.credentials.service;
 
+import com.immutable.credentials.core.Blockchain;
 import com.immutable.credentials.core.Node;
 import com.immutable.credentials.model.Block;
 
@@ -39,7 +40,10 @@ public class BlockchainService {
      *             must not be {@code null}
      * @throws IllegalArgumentException if {@code node} is {@code null}
      */
-    public BlockchainService(Node node) {
+    public BlockchainService(Node node) throws IllegalArgumentException {
+        if (node == null) {
+            throw new IllegalArgumentException("Node cannot be null");
+        }
         this.node = node;
     }
 
@@ -55,7 +59,7 @@ public class BlockchainService {
      *         starting from the genesis block (index 0)
      */
     public List<Block> getAllBlocks() {
-        return null;
+        return node.getChain();
     }
 
     /**
@@ -66,8 +70,11 @@ public class BlockchainService {
      *         index is out of range or the chain is empty
      * @throws IllegalArgumentException if {@code index} is negative
      */
-    public Block getBlockByIndex(int index) {
-        return null;
+    public Block getBlockByIndex(int index) throws IllegalArgumentException {
+        if (index < 0) {
+            throw new IllegalArgumentException("Block index cannot be negative");
+        }
+        return node.getBlock(index);
     }
 
     /**
@@ -76,7 +83,7 @@ public class BlockchainService {
      * @return the latest {@link Block}, or {@code null} if the chain is empty
      */
     public Block getLatestBlock() {
-        return null;
+        return node.getLatestBlock();
     }
 
     /**
@@ -85,7 +92,7 @@ public class BlockchainService {
      * @return the number of blocks; {@code 0} if the chain is empty
      */
     public int getChainHeight() {
-        return 0;
+        return node.getChainHeight();
     }
 
     /**
@@ -102,7 +109,7 @@ public class BlockchainService {
      *         invalid timestamp, or invalid signature
      */
     public boolean isChainValid() {
-        return false;
+        return node.validateIncomingChain(new Blockchain(node.getChain()));
     }
 
     /**
@@ -112,7 +119,10 @@ public class BlockchainService {
      * @return the latest block's timestamp in milliseconds, or {@code -1}
      */
     public long getLastBlockTimestamp() {
-        return -1;
+        if (node.getChainHeight() == 0) {
+            return -1;
+        }
+        return node.getLatestBlock().getTimestamp();
     }
 
     /**
@@ -123,6 +133,6 @@ public class BlockchainService {
      *         exists
      */
     public int getTotalCredentialCount() {
-        return 0;
+        return node.getCredentialIndex().getCredentialCount();
     }
 }

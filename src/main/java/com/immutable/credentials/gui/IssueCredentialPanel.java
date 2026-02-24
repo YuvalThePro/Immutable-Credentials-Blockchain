@@ -16,9 +16,24 @@ import javafx.scene.layout.VBox;
  * onto the blockchain.
  *
  * <p>
- * <b>Access restriction:</b> This panel is only functional when the
- * running node is a validator. All controls must be disabled when
- * {@link NodeService#isValidator()} returns {@code false}.
+ * <b>University (validator) nodes only.</b> This panel is disabled entirely
+ * for read-only nodes (student portals, employer verifiers, public explorers).
+ * Only an accredited institution running a validator node may issue a
+ * credential because:
+ * </p>
+ * <ul>
+ * <li>The submitted credential is attributed to the university's
+ * {@link com.immutable.credentials.consensus.Validator#getInstitution()}
+ * identity.</li>
+ * <li>The block sealing the credential is signed with the university's
+ * private key.</li>
+ * <li>The other validator-universities must vote to approve the block,
+ * providing mutual oversight.</li>
+ * </ul>
+ * <p>
+ * {@link NodeService#isValidator()} is used to enable/disable the form;
+ * when {@code false} the panel shows a notice explaining that only
+ * university nodes may issue credentials.
  * </p>
  *
  * <p>
@@ -119,16 +134,20 @@ public class IssueCredentialPanel extends VBox {
     }
 
     /**
-     * Enable or disable all form controls based on whether the current
-     * node is a validator.
+     * Enable or disable all form controls based on whether this node is a
+     * university (validator) node.
      *
      * <p>
-     * A non-validator node must have the entire form disabled with a
-     * prominent notice explaining that credential issuance requires
-     * validator privileges.
+     * Should be set to {@code false} for read-only nodes (student portals,
+     * employer verifiers) because they are not permitted to issue credentials.
+     * Should also be set to {@code false} when the node is not yet running,
+     * regardless of type.
+     * When disabled, a notice must be displayed explaining that only accredited
+     * university nodes may issue credentials.
      * </p>
      *
-     * @param enabled {@code true} to enable the form; {@code false} to disable it
+     * @param enabled {@code true} to enable the form (node is running and is
+     *                a university/validator node); {@code false} otherwise
      */
     public void setFormEnabled(boolean enabled) {
     }

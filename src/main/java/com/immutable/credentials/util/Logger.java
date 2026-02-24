@@ -8,9 +8,9 @@ import java.util.Date;
  * Provides timestamped console logging with different log levels.
  */
 public class Logger {
-    
+
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
-    
+
     /**
      * Log an informational message.
      * 
@@ -19,7 +19,7 @@ public class Logger {
     public static void log(String message) {
         System.out.println("[" + dateFormat.format(new Date()) + "] INFO: " + message);
     }
-    
+
     /**
      * Log an error message.
      * 
@@ -28,7 +28,7 @@ public class Logger {
     public static void error(String message) {
         System.err.println("[" + dateFormat.format(new Date()) + "] ERROR: " + message);
     }
-    
+
     /**
      * Log a warning message.
      * 
@@ -37,7 +37,7 @@ public class Logger {
     public static void warn(String message) {
         System.out.println("[" + dateFormat.format(new Date()) + "] WARN: " + message);
     }
-    
+
     /**
      * Log a debug message.
      * 

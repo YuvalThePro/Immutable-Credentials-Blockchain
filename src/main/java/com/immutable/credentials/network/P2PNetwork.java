@@ -87,6 +87,16 @@ public class P2PNetwork {
 	}
 
 	/**
+	 * Return whether the network listener is active.
+	 *
+	 * @return {@code true} if {@link #start()} has been called and
+	 *         {@link #stop()} has not yet been called
+	 */
+	public boolean isRunning() {
+		return running;
+	}
+
+	/**
 	 * Start the network listener and background workers.
 	 */
 	public synchronized void start() throws IOException {
@@ -582,8 +592,8 @@ public class P2PNetwork {
 		String payload = message.getPayload().toString();
 		Block block = JsonSerializer.jsonToBlock(payload);
 		if (block == null || !block.isHashValid())
-		if (block == null || !block.isHashValid())
-			return;
+			if (block == null || !block.isHashValid())
+				return;
 		node.handleProposedBlock(block);
 		broadcastMessage(message, connection.peer.getNodeId());
 	}

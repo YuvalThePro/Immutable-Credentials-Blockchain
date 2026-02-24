@@ -6,28 +6,6 @@ import com.immutable.credentials.model.Block;
 
 import java.util.List;
 
-/**
- * Middleware service that bridges the UI layer and the blockchain-related
- * data operations exposed by {@link Node} and its underlying
- * {@link com.immutable.credentials.core.Blockchain}.
- *
- * <p>
- * No GUI class should call {@link Node} or
- * {@link com.immutable.credentials.core.Blockchain} directly for chain queries.
- * Instead, every blockchain read must go through this service, which:
- * </p>
- * <ul>
- * <li>Returns defensive copies of chain data so the UI cannot mutate state</li>
- * <li>Aggregates statistics (height, last block time, validity) into simple
- * types</li>
- * <li>Handles edge cases such as an empty or uninitialised chain
- * gracefully</li>
- * </ul>
- *
- * <p>
- * All methods are read-only with respect to the blockchain state.
- * </p>
- */
 public class BlockchainService {
 
     /** The backend node that owns the blockchain. */

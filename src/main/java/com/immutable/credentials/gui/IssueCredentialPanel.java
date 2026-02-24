@@ -16,24 +16,22 @@ import javafx.scene.layout.VBox;
  * onto the blockchain.
  *
  * <p>
- * <b>University (validator) nodes only.</b> This panel is disabled entirely
+ * <b>University and validator nodes only.</b> This panel is disabled entirely
  * for read-only nodes (student portals, employer verifiers, public explorers).
- * Only an accredited institution running a validator node may issue a
- * credential because:
+ * Any accredited institution — whether a plain university node or a
+ * consensus-validator node — may submit credentials:
  * </p>
  * <ul>
- * <li>The submitted credential is attributed to the university's
- * {@link com.immutable.credentials.consensus.Validator#getInstitution()}
- * identity.</li>
- * <li>The block sealing the credential is signed with the university's
- * private key.</li>
- * <li>The other validator-universities must vote to approve the block,
- * providing mutual oversight.</li>
+ * <li><b>Validator nodes</b> (e.g. MIT, Oxford) can both issue credentials
+ * <em>and</em> seal/approve blocks via Proof-of-Authority consensus.</li>
+ * <li><b>University nodes</b> may submit credentials; the credential is pooled
+ * and finalised once a quorum of validators approves the containing block.
+ * They do <em>not</em> sign blocks themselves.</li>
  * </ul>
  * <p>
- * {@link NodeService#isValidator()} is used to enable/disable the form;
+ * {@link NodeService#isUniversity()} is used to enable/disable the form;
  * when {@code false} the panel shows a notice explaining that only
- * university nodes may issue credentials.
+ * accredited university or validator nodes may issue credentials.
  * </p>
  *
  * <p>

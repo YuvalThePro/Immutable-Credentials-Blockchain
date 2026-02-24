@@ -17,7 +17,8 @@ import java.util.Properties;
 
 /**
  * Secure configuration loader for blockchain node settings.
- * Loads configuration from property files with input validation and security checks.
+ * Loads configuration from property files with input validation and security
+ * checks.
  * 
  * Security measures:
  * - Path traversal prevention
@@ -36,7 +37,7 @@ public class ConfigLoader {
      * Load node configuration from node.properties file.
      * 
      * @return Properties object containing node configuration
-     * @throws IOException if configuration file cannot be read
+     * @throws IOException       if configuration file cannot be read
      * @throws SecurityException if configuration values are invalid
      */
     public static Properties loadNodeConfig() throws IOException {
@@ -47,7 +48,7 @@ public class ConfigLoader {
      * Load blockchain configuration from blockchain.properties file.
      * 
      * @return Properties object containing blockchain configuration
-     * @throws IOException if configuration file cannot be read
+     * @throws IOException       if configuration file cannot be read
      * @throws SecurityException if configuration values are invalid
      */
     public static Properties loadBlockchainConfig() throws IOException {
@@ -58,7 +59,7 @@ public class ConfigLoader {
      * Load network configuration from network.properties file.
      * 
      * @return Properties object containing network configuration
-     * @throws IOException if configuration file cannot be read
+     * @throws IOException       if configuration file cannot be read
      * @throws SecurityException if configuration values are invalid
      */
     public static Properties loadNetworkConfig() throws IOException {
@@ -69,7 +70,7 @@ public class ConfigLoader {
      * Load validator configuration and parse validator list.
      * 
      * @return HashMap mapping validator IDs to their public keys
-     * @throws IOException if configuration file cannot be read
+     * @throws IOException       if configuration file cannot be read
      * @throws SecurityException if configuration values are invalid
      */
     public static HashMap<String, PublicKey> loadValidators() throws IOException {
@@ -91,7 +92,7 @@ public class ConfigLoader {
 
             // Validate validator ID
             validatorId = validateString(validatorId, "Validator ID", 100);
-            
+
             // Skip placeholder keys
             if (publicKeyStr.contains("PLACEHOLDER")) {
                 Logger.log("Warning: Skipping validator " + validatorId + " with placeholder key");
@@ -121,7 +122,7 @@ public class ConfigLoader {
      * 
      * @param fileName the name of the properties file
      * @return Properties object with loaded configuration
-     * @throws IOException if file cannot be read
+     * @throws IOException       if file cannot be read
      * @throws SecurityException if file path is invalid
      */
     private static Properties loadPropertiesFile(String fileName) throws IOException {
@@ -135,7 +136,7 @@ public class ConfigLoader {
         }
 
         Path configPath = Paths.get(CONFIG_DIR, fileName);
-        
+
         // Ensure the resolved path is still within config directory
         Path normalizedPath = configPath.normalize();
         if (!normalizedPath.startsWith(Paths.get(CONFIG_DIR).toAbsolutePath().normalize())) {
@@ -356,20 +357,20 @@ public class ConfigLoader {
         if (nodeType == null || nodeType.trim().isEmpty()) {
             return "non-validator";
         }
-        
+
         nodeType = nodeType.trim().toLowerCase();
         if (!nodeType.equals("validator") && !nodeType.equals("non-validator")) {
             Logger.log("Warning: Invalid node type '" + nodeType + "', defaulting to 'non-validator'");
             return "non-validator";
         }
-        
+
         return nodeType;
     }
 
     /**
      * Validate string length and content.
      * 
-     * @param value the string to validate
+     * @param value     the string to validate
      * @param fieldName the name of the field (for error messages)
      * @param maxLength the maximum allowed length
      * @return validated string
@@ -378,17 +379,17 @@ public class ConfigLoader {
         if (value == null) {
             throw new IllegalArgumentException(fieldName + " cannot be null");
         }
-        
+
         value = value.trim();
-        
+
         if (value.isEmpty()) {
             throw new IllegalArgumentException(fieldName + " cannot be empty");
         }
-        
+
         if (value.length() > maxLength) {
             throw new IllegalArgumentException(fieldName + " exceeds maximum length of " + maxLength);
         }
-        
+
         return value;
     }
 
@@ -413,9 +414,9 @@ public class ConfigLoader {
     /**
      * Validate positive integer value.
      * 
-     * @param valueStr the string to validate
+     * @param valueStr  the string to validate
      * @param fieldName the name of the field (for error messages)
-     * @param maxValue the maximum allowed value
+     * @param maxValue  the maximum allowed value
      * @return validated integer
      */
     private static int validatePositiveInt(String valueStr, String fieldName, int maxValue) {
@@ -437,7 +438,7 @@ public class ConfigLoader {
      * Validate timeout value.
      * 
      * @param timeoutStr the timeout string to validate
-     * @param fieldName the name of the field (for error messages)
+     * @param fieldName  the name of the field (for error messages)
      * @return validated timeout in milliseconds
      */
     private static long validateTimeout(String timeoutStr, String fieldName) {
@@ -456,7 +457,7 @@ public class ConfigLoader {
      * Validate interval value.
      * 
      * @param intervalStr the interval string to validate
-     * @param fieldName the name of the field (for error messages)
+     * @param fieldName   the name of the field (for error messages)
      * @return validated interval in milliseconds
      */
     private static long validateInterval(String intervalStr, String fieldName) {
@@ -481,14 +482,14 @@ public class ConfigLoader {
         if (peer == null || peer.trim().isEmpty()) {
             throw new IllegalArgumentException("Peer address cannot be null or empty");
         }
-        
+
         peer = peer.trim();
-        
+
         // Basic validation: should be in format host:port
         if (!peer.matches("^[a-zA-Z0-9.-]+:[0-9]+$")) {
             throw new IllegalArgumentException("Invalid peer address format: " + peer);
         }
-        
+
         return peer;
     }
 
@@ -502,13 +503,13 @@ public class ConfigLoader {
         if (format == null || format.trim().isEmpty()) {
             return "json";
         }
-        
+
         format = format.trim().toLowerCase();
         if (!format.equals("json") && !format.equals("binary")) {
             Logger.log("Warning: Invalid storage format '" + format + "', defaulting to 'json'");
             return "json";
         }
-        
+
         return format;
     }
 
@@ -522,19 +523,19 @@ public class ConfigLoader {
         if (path == null || path.trim().isEmpty()) {
             throw new IllegalArgumentException("Path cannot be null or empty");
         }
-        
+
         path = path.trim();
-        
+
         // Normalize the path to prevent traversal
         Path normalizedPath = Paths.get(path).normalize();
-        
+
         // Convert to string and ensure no suspicious patterns
         String pathStr = normalizedPath.toString();
-        
+
         if (pathStr.length() > 500) {
             throw new IllegalArgumentException("Path exceeds maximum length");
         }
-        
+
         return pathStr;
     }
 }

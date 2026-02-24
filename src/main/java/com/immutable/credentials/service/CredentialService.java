@@ -4,42 +4,10 @@ import com.immutable.credentials.core.Node;
 import com.immutable.credentials.model.Credential;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 
-/**
- * Middleware service that bridges the UI layer and the credential-related
- * backend operations exposed by {@link Node}.
- *
- * <p>
- * No GUI class should call {@link Node} directly for credential operations.
- * Instead, every credential action must go through this service, which is
- * responsible for:
- * </p>
- * <ul>
- * <li>Input validation before forwarding requests to the backend</li>
- * <li>Converting between UI-friendly types (e.g. {@link LocalDate}) and
- * backend types (e.g. {@link java.util.Date})</li>
- * <li>Catching backend exceptions and translating them into meaningful
- * results for the UI</li>
- * <li>Providing query methods that shield the UI from the underlying
- * {@link com.immutable.credentials.storage.CredentialIndex} details</li>
- * </ul>
- *
- * <h2>University = Validator model</h2>
- * <p>
- * In this network, only accredited universities run validator nodes.
- * A validator node holds the university's private key, participates in
- * Proof-of-Authority consensus, and is the <em>only</em> node type
- * permitted to submit credentials. Read-only nodes (student portals,
- * employer verifiers, public explorers) may verify credentials but
- * cannot issue them.
- * </p>
- *
- * <p>
- * All methods are safe to call from the JavaFX Application Thread; long-running
- * operations should be wrapped in a {@code Task} by the calling panel.
- * </p>
- */
 public class CredentialService {
 
     /** The backend node that owns the blockchain and credential index. */
@@ -67,33 +35,33 @@ public class CredentialService {
      * </p>
      *
      * <p>
-     * <b>Precondition – university (validator) node only.</b>
-     * Only an accredited institution running a validator node may call this
-     * method. The submitted credential is authenticated by the university's
-     * identity
-     * ({@link com.immutable.credentials.consensus.Validator#getInstitution()})
-     * and the block that eventually seals it will be signed with the
-     * university's private key and approved by a majority of other
-     * validator-universities. Read-only nodes (student portals, employer
-     * verifiers) must not call this method.
+     * <b>Precondition – university node or validator node.</b>
+     * Any accredited institution (university node <em>or</em> validator node)
+     * may submit credentials. The submitted credential will be pooled and
+     * sealed into the next block once a quorum of validator-universities
+     * approves it. Read-only nodes (student portals, employer verifiers,
+     * public explorers) must not call this method; use {@link #isUniversityNode()}
+     * to guard the call site.
      * </p>
      *
      * @param studentName  the full name of the student; must not be blank
      * @param studentId    the unique student identifier; must not be blank
      * @param degree       the degree or certification earned; must not be blank
-     * @param institution  the awarding institution; must match the validator's
-     *                     own institution name; must not be blank
+     * @param institution  the awarding institution; must not be blank
      * @param dateAwarded  the date the credential was awarded; must not be
      *                     {@code null}
      * @param credentialId a caller-supplied unique credential ID; must not be blank
      * @throws IllegalArgumentException if any parameter is null, blank, or invalid
      * @throws IllegalStateException    if the node is not running or is not a
-     *                                  validator (university) node
+     *                                  university (or validator) node
      */
     public void issueCredential(String studentName, String studentId,
             String degree, String institution,
             LocalDate dateAwarded, String credentialId) {
-
+        if (!node.isRunning() || !isUniversityNode())
+            throw new IllegalStateException("Node must be running and must be a university or validator node.");
+        Date date = Date.from(dateAwarded.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        node.submitCredential(new Credential(studentName, date, degree, institution, studentId, credentialId));
     }
 
     /**
@@ -110,7 +78,7 @@ public class CredentialService {
      * @throws IllegalArgumentException if {@code credentialId} is null or blank
      */
     public Credential getCredentialById(String credentialId) {
-        return null;
+        return node.getCredentialIndex().getCredentialById(credentialId);
     }
 
     /**
@@ -128,7 +96,7 @@ public class CredentialService {
      * @throws IllegalArgumentException if {@code studentId} is null or blank
      */
     public List<Credential> searchByStudentId(String studentId) {
-        return null;
+        return node.getCredentialIndex().getCredentialsByStudentId(studentId);
     }
 
     /**
@@ -141,25 +109,55 @@ public class CredentialService {
      * @throws IllegalArgumentException if {@code credentialId} is null or blank
      */
     public boolean isCredentialOnChain(String credentialId) {
-        return false;
+        return node.getCredentialIndex().hasCredential(credentialId);
     }
 
     /**
-     * Report whether this node is an accredited university (validator) node
-     * and is therefore authorised to submit credentials, seal blocks, and
-     * cast consensus votes.
+     * Report whether this node is a <em>consensus validator</em> — one of the
+     * major, globally-accredited institutions (e.g. MIT, Oxford) that are
+     * authorised to propose and sign blocks in addition to issuing credentials.
      *
      * <p>
-     * This flag <em>gates credential submission</em>: the
-     * {@code IssueCredentialPanel} must be disabled entirely for non-validator
-     * (read-only) nodes such as student portals and employer verifiers.
+     * Validator nodes hold a {@link com.immutable.credentials.consensus.Validator}
+     * identity with an active private key. They participate in Proof-of-Authority
+     * consensus, seal pending credential batches into blocks, and cast approval
+     * votes. Being a validator implies being a university node, but the converse
+     * is not true — a university node may issue credentials without being a
+     * validator.
      * </p>
      *
-     * @return {@code true} if the node has a
-     *         {@link com.immutable.credentials.consensus.Validator} identity
-     *         (i.e. it is a university node); {@code false} for read-only nodes
+     * <p>
+     * Use this flag to enable/disable block-sealing controls in the UI.
+     * </p>
+     *
+     * @return {@code true} if this node has an active validator identity;
+     *         {@code false} for plain university nodes and read-only nodes
      */
     public boolean isValidatorNode() {
-        return false;
+        return node.isValidator();
+    }
+
+    /**
+     * Report whether this node belongs to an accredited institution
+     * (university node <em>or</em> validator node) and is therefore
+     * authorised to submit credentials.
+     *
+     * <p>
+     * This is the flag that <em>gates credential issuance</em>: the
+     * {@code IssueCredentialPanel} must be disabled entirely for read-only
+     * nodes (student portals, employer verifiers, public explorers) whose
+     * only role is credential verification.
+     * </p>
+     *
+     * <p>
+     * Note: every validator node is also a university node, so this method
+     * returns {@code true} for validators as well.
+     * </p>
+     *
+     * @return {@code true} if this node may submit credentials (university or
+     *         validator); {@code false} for pure read-only nodes
+     */
+    public boolean isUniversityNode() {
+        return node.isUniversity();
     }
 }

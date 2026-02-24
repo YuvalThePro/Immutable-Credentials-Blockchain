@@ -22,9 +22,13 @@ import com.immutable.credentials.util.Logger;
  * Represents a node in the P2P network.
  *
  * Node types:
- * - Validator Node: an authorized participant that can propose and sign blocks
- * - Non-Validator Node: a read-only participant that stores and verifies the
- * chain
+ * - Validator Node: major accredited institution (e.g. MIT) that can
+ * propose/sign
+ * blocks AND issue credentials via Proof-of-Authority consensus.
+ * - University Node: accredited institution that can issue credentials but
+ * cannot propose or sign blocks.
+ * - Read-Only Node: any participant (student, employer, public explorer) that
+ * only verifies credentials; cannot issue or seal anything.
  *
  * Responsibilities:
  * - Maintain a local copy of the blockchain
@@ -41,9 +45,29 @@ public class Node {
     private final int port;
 
     /**
+     * Classifies the role of this node in the network.
+     * <ul>
+     * <li>{@code VALIDATOR} – major accredited institution; can issue credentials
+     * and seal/approve blocks via Proof-of-Authority consensus.</li>
+     * <li>{@code UNIVERSITY} – accredited institution; can issue credentials but
+     * cannot propose or sign blocks.</li>
+     * <li>{@code READ_ONLY} – any participant (student, employer, public explorer)
+     * that only verifies credentials.</li>
+     * </ul>
+     */
+    public enum NodeType {
+        VALIDATOR,
+        UNIVERSITY,
+        READ_ONLY
+    }
+
+    /** Classifies this node's role. Set once at construction and never changed. */
+    private final NodeType nodeType;
+
+    /**
      * The validator associated with this node.
-     * Non-null for validator nodes, null for read-only nodes.
-     * Use {@link #isValidator()} to check node type.
+     * Non-null for {@link NodeType#VALIDATOR} nodes, null otherwise.
+     * Use {@link #isValidator()} / {@link #isUniversity()} to check node type.
      */
     private final Validator validator;
 
@@ -121,6 +145,7 @@ public class Node {
         this.nodeId = nodeId;
         this.address = address;
         this.port = port;
+        this.nodeType = NodeType.VALIDATOR;
         this.validator = validator;
         this.proofOfAuthority = proofOfAuthority;
         this.storageFileName = storageFileName;
@@ -163,6 +188,58 @@ public class Node {
         this.nodeId = nodeId;
         this.address = address;
         this.port = port;
+        this.nodeType = NodeType.READ_ONLY;
+        this.validator = null;
+        this.proofOfAuthority = proofOfAuthority;
+        this.storageFileName = storageFileName;
+        this.blockchain = new Blockchain();
+        this.storage = new BlockchainStorage();
+        this.credentialIndex = new CredentialIndex();
+        this.pendingCredentials = new ArrayList<>();
+        this.running = false;
+    }
+
+    /**
+     * Create a university (issuer-only) node.
+     *
+     * <p>
+     * University nodes belong to accredited institutions that are authorised
+     * to submit credentials but are <em>not</em> consensus validators. Their
+     * submitted credentials are pooled and sealed only when a quorum of
+     * validator-universities approves the block.
+     * </p>
+     *
+     * @param nodeId           the unique identifier for this node
+     * @param address          the IP address or hostname this node listens on
+     * @param port             the port number this node listens on
+     * @param proofOfAuthority the PoA consensus engine shared across the network
+     * @param storageFileName  the filename used to persist the blockchain
+     * @throws IllegalArgumentException if any required parameter is null or invalid
+     */
+    public Node(String nodeId, String address, int port,
+            ProofOfAuthority proofOfAuthority, String storageFileName,
+            boolean isUniversityNode) {
+
+        if (nodeId == null || nodeId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Node ID cannot be null or empty");
+        }
+        if (address == null || address.trim().isEmpty()) {
+            throw new IllegalArgumentException("Address cannot be null or empty");
+        }
+        if (port < 1024 || port > 65535) {
+            throw new IllegalArgumentException("Port must be between 1024 and 65535");
+        }
+        if (proofOfAuthority == null) {
+            throw new IllegalArgumentException("ProofOfAuthority cannot be null");
+        }
+        if (storageFileName == null || storageFileName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Storage file name cannot be null or empty");
+        }
+
+        this.nodeId = nodeId;
+        this.address = address;
+        this.port = port;
+        this.nodeType = isUniversityNode ? NodeType.UNIVERSITY : NodeType.READ_ONLY;
         this.validator = null;
         this.proofOfAuthority = proofOfAuthority;
         this.storageFileName = storageFileName;
@@ -215,8 +292,10 @@ public class Node {
         }
 
         running = true;
-        Logger.log("Node " + nodeId + " started successfully" +
-                (isValidator() ? " [VALIDATOR]" : " [READ-ONLY]"));
+        String nodeTypeLabel = nodeType == NodeType.VALIDATOR ? " [VALIDATOR]"
+                : nodeType == NodeType.UNIVERSITY ? " [UNIVERSITY]"
+                        : " [READ-ONLY]";
+        Logger.log("Node " + nodeId + " started successfully" + nodeTypeLabel);
     }
 
     /**
@@ -255,18 +334,23 @@ public class Node {
 
     /**
      * Submit a credential for inclusion in a future block.
-     * Can be called by any node (validator or non-validator).
+     * Can be called by university or validator nodes only.
      * The credential is broadcast to all peers. Only the current
      * round-robin proposer will accept it into their pending pool.
      *
      * @param credential the credential to submit
-     * @throws IllegalStateException    if this node is not running
+     * @throws IllegalStateException    if this node is not running or is a
+     *                                  read-only node
      * @throws IllegalArgumentException if credential is null or already exists
      *                                  on-chain
      */
     public void submitCredential(Credential credential) {
         if (!running) {
             throw new IllegalStateException("Node is not running");
+        }
+        if (!isUniversity()) {
+            throw new IllegalStateException(
+                    "Only university or validator nodes may submit credentials");
         }
         if (credential == null) {
             throw new IllegalArgumentException("Credential cannot be null");
@@ -618,7 +702,28 @@ public class Node {
      *         nodes
      */
     public boolean isValidator() {
-        return validator != null;
+        return nodeType == NodeType.VALIDATOR;
+    }
+
+    /**
+     * Check whether this node belongs to an accredited institution and may
+     * therefore submit credentials. Returns {@code true} for both
+     * {@link NodeType#UNIVERSITY} and {@link NodeType#VALIDATOR} nodes;
+     * {@code false} for {@link NodeType#READ_ONLY} nodes.
+     *
+     * @return true if this node may issue credentials
+     */
+    public boolean isUniversity() {
+        return nodeType == NodeType.UNIVERSITY || nodeType == NodeType.VALIDATOR;
+    }
+
+    /**
+     * Get the {@link NodeType} of this node.
+     *
+     * @return the node type
+     */
+    public NodeType getNodeType() {
+        return nodeType;
     }
 
     /**

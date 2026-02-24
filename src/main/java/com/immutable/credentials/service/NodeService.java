@@ -4,23 +4,6 @@ import com.immutable.credentials.core.Node;
 
 import java.io.IOException;
 
-/**
- * Middleware service that bridges the UI layer and the node lifecycle /
- * identity operations exposed by {@link Node}.
- *
- * <p>
- * No GUI class should call {@link Node} directly for start/stop or
- * identity queries. All such interactions must be routed through this
- * service, which:
- * </p>
- * <ul>
- * <li>Guards lifecycle calls with appropriate state checks</li>
- * <li>Translates {@link IOException} and {@link IllegalStateException}
- * into results the UI can handle without crashing</li>
- * <li>Provides simple boolean / string accessors for node identity so
- * panels can make visibility and access-control decisions</li>
- * </ul>
- */
 public class NodeService {
 
     /** The backend node managed by this service. */
@@ -110,29 +93,50 @@ public class NodeService {
     }
 
     /**
-     * Report whether this node is an accredited university (validator) node.
+     * Report whether this node is a consensus <em>validator</em> — one of the
+     * major, globally-accredited institutions (e.g. MIT, Oxford) that may
+     * propose and sign blocks in addition to issuing credentials.
      *
      * <p>
-     * In this network, <em>validator node = university node</em>.
-     * Only university nodes may:
+     * Only validator nodes may:
      * </p>
      * <ul>
-     * <li>Submit credentials via {@link CredentialService#issueCredential}</li>
      * <li>Propose and sign blocks</li>
      * <li>Cast votes in Proof-of-Authority consensus</li>
      * </ul>
      *
      * <p>
-     * Read-only nodes (student portals, employer verifiers, public explorers)
-     * return {@code false} here and must have the Issue Credential panel disabled.
+     * Use {@link #isUniversity()} to check if this node may <em>issue</em>
+     * credentials, which is true for both validator and plain university nodes.
      * </p>
      *
-     * @return {@code true} if this node holds a
-     *         {@link com.immutable.credentials.consensus.Validator} identity
-     *         (i.e. it is a university node); {@code false} otherwise
+     * @return {@code true} if this node is a
+     *         {@link com.immutable.credentials.core.Node.NodeType#VALIDATOR}
      */
     public boolean isValidator() {
-        return false;
+        return node.isValidator();
+    }
+
+    /**
+     * Report whether this node belongs to an accredited institution and is
+     * therefore authorised to submit credentials.
+     *
+     * <p>
+     * Returns {@code true} for both
+     * {@link com.immutable.credentials.core.Node.NodeType#VALIDATOR} and
+     * {@link com.immutable.credentials.core.Node.NodeType#UNIVERSITY} nodes.
+     * Returns {@code false} for read-only nodes (student portals, employer
+     * verifiers, public explorers).
+     * </p>
+     *
+     * <p>
+     * This is the flag that gates the {@code IssueCredentialPanel}.
+     * </p>
+     *
+     * @return {@code true} if this node may submit credentials
+     */
+    public boolean isUniversity() {
+        return node.isUniversity();
     }
 
     /**

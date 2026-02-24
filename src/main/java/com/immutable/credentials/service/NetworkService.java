@@ -5,24 +5,6 @@ import com.immutable.credentials.network.Peer;
 
 import java.util.List;
 
-/**
- * Middleware service that bridges the UI layer and the P2P networking
- * operations exposed by {@link Node} and its underlying
- * {@link com.immutable.credentials.network.P2PNetwork}.
- *
- * <p>
- * No GUI class should call {@link com.immutable.credentials.network.P2PNetwork}
- * directly. All network interactions from the UI must be routed through this
- * service, which:
- * </p>
- * <ul>
- * <li>Validates peer address and port before forwarding connection
- * requests</li>
- * <li>Exposes a read-only view of the connected peers list</li>
- * <li>Provides status queries (network running, peer count, sync status)</li>
- * <li>Translates backend exceptions into meaningful results for the UI</li>
- * </ul>
- */
 public class NetworkService {
 
     /** The backend node that owns the P2P network. */
@@ -50,7 +32,7 @@ public class NetworkService {
      * @return a non-null, possibly empty, list of {@link Peer} objects
      */
     public List<Peer> getConnectedPeers() {
-        return null;
+        return node.getNetwork().getPeerList();
     }
 
     /**
@@ -59,7 +41,7 @@ public class NetworkService {
      * @return the connected peer count; {@code 0} if isolated or network is stopped
      */
     public int getPeerCount() {
-        return 0;
+        return getConnectedPeers().size();
     }
 
     /**
@@ -80,6 +62,13 @@ public class NetworkService {
      * @throws IllegalStateException    if the network is not currently running
      */
     public void connectToPeer(String host, int port) {
+        if (host == null || host.trim().isEmpty())
+            throw new IllegalArgumentException("Host must not be blank.");
+        if (port < 1024 || port > 65535)
+            throw new IllegalArgumentException("Port must be between 1024 and 65535.");
+        if (!isNetworkRunning())
+            throw new IllegalStateException("Network is not running.");
+        node.getNetwork().connectToPeer(host, port);
     }
 
     /**
@@ -89,19 +78,7 @@ public class NetworkService {
      *         {@code false} otherwise
      */
     public boolean isNetworkRunning() {
-        return false;
-    }
-
-    /**
-     * Report whether this node's local chain is currently synchronised with
-     * its peers (i.e. no sync is in progress and the chain height matches
-     * the highest known peer height).
-     *
-     * @return {@code true} if the node is in sync; {@code false} if a sync
-     *         is pending or the node is isolated
-     */
-    public boolean isSynced() {
-        return false;
+        return node.getNetwork() != null && node.getNetwork().isRunning();
     }
 
     /**
@@ -116,6 +93,11 @@ public class NetworkService {
      * @return a non-null status string
      */
     public String getSyncStatusDescription() {
-        return null;
+        if (!isNetworkRunning())
+            return "Network stopped";
+        int peers = getPeerCount();
+        if (peers == 0)
+            return "Isolated \u2013 no peers";
+        return "Synced (" + peers + " peer" + (peers == 1 ? "" : "s") + ")";
     }
 }

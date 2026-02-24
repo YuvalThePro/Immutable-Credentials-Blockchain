@@ -8,28 +8,52 @@
     <name>Immutable Credentials Blockchain</name>
     <description>Blockchain for immutable academic credentials</description>
     <properties>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <javafx.version>17.0.2</javafx.version>
     </properties>
     <dependencies>
-        <!-- https://mvnrepository.com/artifact/org.json/json -->
+        <!-- JSON -->
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
             <version>20231013</version>
         </dependency>
+
+        <!-- JUnit -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- JavaFX – controls (pulls in javafx-graphics and javafx-base transitively) -->
         <dependency>
             <groupId>org.openjfx</groupId>
-            <artifactId>javafx</artifactId>
-            <version>11</version>
-            <type>pom</type>
-            <scope>compile</scope>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- JavaFX – FXML support (optional, included for future use) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- JavaFX Maven Plugin – use "mvn javafx:run" to launch the app -->
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>com.immutable.credentials.gui.MainWindow</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

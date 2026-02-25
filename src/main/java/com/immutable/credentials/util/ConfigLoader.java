@@ -61,15 +61,15 @@ public class ConfigLoader {
      * The returned full Validator is upserted into the shared validators list so that
      * the rest of the node sees the correct public key immediately.
      *
-     * @param validatorId the ID of the local validator (must match a database row)
+     * @param validatorId the ID of the local validator
+     * @param institution the institution name for this validator (from NodeConfig)
      * @param validators  the shared validator list to update in-place
-     * @param authService the connected AuthService used to look up institution and
-     *                    persist new public keys
-     * @return the full Validator with both keys, or null if validatorId is not in the list
+     * @param authService the connected AuthService used to persist new public keys
+     * @return the full Validator with both keys (never null)
      * @throws IOException  if the key file cannot be read or written
      * @throws SQLException if the database upsert fails
      */
-    public static Validator loadLocalValidator(String validatorId,
+    public static Validator loadLocalValidator(String validatorId, String institution,
             List<Validator> validators, AuthService authService)
             throws IOException, SQLException {
 
@@ -81,26 +81,38 @@ public class ConfigLoader {
             }
         }
 
+        // existing may be null when the DB row had a PENDING/invalid public key and was skipped.
+        // Fall through to key generation; the real public key will be upserted below.
         if (existing == null) {
-            Logger.log("Warning: Validator ID " + validatorId
-                    + " not found in database validators table");
-            return null;
+            Logger.log("Validator " + validatorId
+                    + " not yet active (pending key) - will generate key pair.");
         }
 
-        String institution = existing.getInstitution();
         String keyFile = KEYS_DIR + "/" + validatorId + ".key";
         Path keyPath = Paths.get(keyFile);
 
         PublicKey publicKey;
         PrivateKey privateKey;
 
+        // If the key file exists but this validator's public key was never properly
+        // synced to the DB (existing == null means it was skipped as PENDING/invalid),
+        // delete the stale key file and regenerate a fresh pair so DB and disk stay in sync.
+        if (existing == null && Files.exists(keyPath)) {
+            Logger.log("Stale key file found for " + validatorId
+                    + " with no matching DB public key - regenerating...");
+            Files.delete(keyPath);
+        }
+
         if (Files.exists(keyPath)) {
             String keyBase64 = new String(Files.readAllBytes(keyPath), "UTF-8").trim();
             privateKey = CryptoUtils.privateKeyFromBase64(keyBase64);
             publicKey = existing.getPublicKey();
+            // Always re-upload so DB stays in sync with the key on disk
+            authService.upsertValidatorKey(validatorId, institution,
+                    CryptoUtils.keyToString(publicKey));
             Logger.log("Loaded private key for validator " + validatorId + " from " + keyFile);
         } else {
-            Logger.log("No private key found for " + validatorId + " ג€” generating new RSA key pair...");
+            Logger.log("No private key found for " + validatorId + " - generating new RSA key pair...");
             Files.createDirectories(keyPath.getParent());
             KeyPair keyPair = CryptoUtils.generateAndSaveKeyPair(keyFile);
             publicKey = keyPair.getPublic();

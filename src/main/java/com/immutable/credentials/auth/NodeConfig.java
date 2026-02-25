@@ -7,7 +7,7 @@ package com.immutable.credentials.auth;
  */
 public class NodeConfig {
 
-    private final String israeliId;
+    private final String id;
     private final String displayName;
     private final String nodeType;    // "VALIDATOR", "UNIVERSITY", or "READ_ONLY"
     private final String validatorId; // non-null only when nodeType is "VALIDATOR"
@@ -18,7 +18,7 @@ public class NodeConfig {
     /**
      * Create a new NodeConfig populated from a database login result.
      *
-     * @param israeliId   the 9-digit Israeli national ID used to log in
+     * @param id          the unique node ID (e.g., Israeli national ID or UUID)
      * @param displayName the person or institution display name stored in the DB
      * @param nodeType    one of "VALIDATOR", "UNIVERSITY", or "READ_ONLY"
      * @param validatorId the validator ID string, or null for non-validator nodes
@@ -26,9 +26,9 @@ public class NodeConfig {
      * @param port        the TCP port this node listens on
      * @param dataDir     the local directory used for blockchain storage
      */
-    public NodeConfig(String israeliId, String displayName, String nodeType,
+    public NodeConfig(String id, String displayName, String nodeType,
             String validatorId, String institution, int port, String dataDir) {
-        this.israeliId = israeliId;
+        this.id = id;
         this.displayName = displayName;
         this.nodeType = nodeType;
         this.validatorId = validatorId;
@@ -37,9 +37,9 @@ public class NodeConfig {
         this.dataDir = dataDir;
     }
 
-    /** Returns the Israeli national ID used to log in. */
-    public String getIsraeliId() {
-        return israeliId;
+    /** Returns the unique node ID (e.g., Israeli national ID or UUID). */
+    public String getId() {
+        return id;
     }
 
     /** Returns the display name stored in the database for this user. */

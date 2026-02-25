@@ -190,11 +190,8 @@ public class MainWindow extends Application {
                     throw new RuntimeException("validator_id is not set for this account in the database.");
                 }
                 // Loads or generates key pair; public key synced to DB if new
-                Validator localValidator = ConfigLoader.loadLocalValidator(validatorId, validators, authService);
-                if (localValidator == null) {
-                    throw new RuntimeException("Validator '" + validatorId
-                            + "' not found in the database validators table.");
-                }
+                Validator localValidator = ConfigLoader.loadLocalValidator(
+                        validatorId, dbConfig.getInstitution(), validators, authService);
                 localValidator.activate();
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
                 node = new Node(validatorId, address, port, localValidator, poa, storageFile);

@@ -282,16 +282,16 @@ public class AdminPanel extends VBox {
 
     /**
      * Handler for the Register User button.
-     * Validates the Israeli ID with CryptoUtils.isValidIsraeliId, generates a
+     * Validates the Israeli ID with CryptoUtils.isValidid, generates a
      * password, and calls AdminService.registerStaff or registerStudent depending
      * on the selected role. Shows the plain password once on success.
      */
     private void onRegisterUser() {
-        String israeliId = userIdField.getText().trim();
+        String id = userIdField.getText().trim();
         String displayName = userNameField.getText().trim();
         String role = userRoleBox.getValue();
 
-        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
+        if (!CryptoUtils.isValidIsraeliId(id)) {
             showUserResult("Invalid Israeli ID. Must be exactly 9 digits and pass the checksum.", true);
             return;
         }
@@ -320,9 +320,9 @@ public class AdminPanel extends VBox {
             try {
                 boolean isStaff = role.startsWith("Staff");
                 if (isStaff) {
-                    adminService.registerStaff(israeliId, plainPw, displayName, port, dataDir);
+                    adminService.registerStaff(id, plainPw, displayName, port, dataDir);
                 } else {
-                    adminService.registerStudent(israeliId, plainPw, displayName, port, dataDir);
+                    adminService.registerStudent(id, plainPw, displayName, port, dataDir);
                 }
                 Platform.runLater(() -> {
                     showUserResult("User registered successfully.", false);
@@ -343,11 +343,11 @@ public class AdminPanel extends VBox {
      * Shows the plain password once on success.
      */
     private void onRegisterInstitution() {
-        String israeliId = instAdminIdField.getText().trim();
+        String id = instAdminIdField.getText().trim();
         String institutionName = instNameField.getText().trim();
         String adminName = instAdminNameField.getText().trim();
 
-        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
+        if (!CryptoUtils.isValidIsraeliId(id)) {
             showInstResult("Invalid admin Israeli ID. Must be exactly 9 digits and pass the checksum.", true);
             return;
         }
@@ -374,7 +374,7 @@ public class AdminPanel extends VBox {
 
         new Thread(() -> {
             try {
-                adminService.registerInstitution(israeliId, plainPw,
+                adminService.registerInstitution(id, plainPw,
                         institutionName, adminName.isEmpty() ? institutionName + " Admin" : adminName,
                         port, dataDir);
                 Platform.runLater(() -> {

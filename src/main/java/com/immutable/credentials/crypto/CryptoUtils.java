@@ -16,16 +16,18 @@ import java.util.Base64;
 public class CryptoUtils {
     
     /**
-     * Calculate SHA-256 hash of an input string.
-     * 
-     * @param input the string to hash
-     * @return hex-encoded SHA-256 hash
+     * Compute the SHA-256 hex digest of the given UTF-8 string.
+     * This is the canonical hash method used throughout the codebase,
+     * including password hashing for cloud authentication and block hashing.
+     *
+     * @param input the string to hash; must not be null
+     * @return a 64-character lowercase hex string representing the SHA-256 digest
+     * @throws RuntimeException if SHA-256 is unavailable on this JVM
      */
     public static String applySha256(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(input.getBytes("UTF-8"));
-            
             StringBuffer hexString = new StringBuffer();
             for (int i = 0; i < hash.length; i++) {
                 String hex = Integer.toHexString(0xff & hash[i]);

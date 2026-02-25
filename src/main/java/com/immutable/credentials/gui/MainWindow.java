@@ -119,15 +119,7 @@ public class MainWindow extends Application {
      * Must be called before {@link #buildTabPane()} or any panel is constructed.
      */
     private void initServices() throws RuntimeException {
-        try {
-            com.immutable.credentials.core.Node node = com.immutable.credentials.util.NodeFactory.buildFromConfig();
-            nodeService = new NodeService(node);
-            blockchainService = new BlockchainService(node);
-            credentialService = new CredentialService(node);
-            networkService = new NetworkService(node);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialise node from configuration: " + e.getMessage(), e);
-        }
+
     }
 
     /**
@@ -145,13 +137,11 @@ public class MainWindow extends Application {
      * @return a fully wired {@link MenuBar} ready to be placed in the root layout
      */
     private MenuBar buildMenuBar() {
-        // ----- File menu -----
         MenuItem exitItem = new MenuItem("Exit");
         exitItem.setOnAction(e -> onExit());
         Menu fileMenu = new Menu("File");
         fileMenu.getItems().add(exitItem);
 
-        // ----- Node menu -----
         MenuItem startItem = new MenuItem("Start Node");
         startItem.setOnAction(e -> onStartNode());
 

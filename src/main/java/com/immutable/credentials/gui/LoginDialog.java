@@ -1,7 +1,8 @@
 package com.immutable.credentials.gui;
 
-import com.immutable.credentials.auth.AuthService;
 import com.immutable.credentials.auth.NodeConfig;
+import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.service.AuthService;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -89,7 +90,7 @@ public class LoginDialog {
         form.setVgap(12);
         form.setPadding(new Insets(20, 0, 10, 0));
 
-        Label idLabel = new Label("Israeli ID:");
+        Label idLabel = new Label("ID:");
         idField = new TextField();
         idField.setPromptText("9-digit national ID");
         idField.setPrefWidth(220);
@@ -155,11 +156,11 @@ public class LoginDialog {
         String password = passwordField.getText();
 
         if (israeliId.isEmpty() || password.isEmpty()) {
-            showError("Please enter your Israeli ID and password.");
+            showError("Please enter your ID and password.");
             return;
         }
-        if (!israeliId.matches("\\d{5,10}")) {
-            showError("Israeli ID must be 5 to 10 digits.");
+        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
+            showError("Invalid ID. Must be exactly 9 digits and pass the checksum.");
             return;
         }
 
@@ -173,7 +174,7 @@ public class LoginDialog {
                 NodeConfig config = authService.login(israeliId, password);
                 javafx.application.Platform.runLater(() -> {
                     if (config == null) {
-                        showError("Invalid Israeli ID or password.");
+                        showError("Invalid ID or password.");
                         loginButton.setDisable(false);
                         loginButton.setText("Login");
                     } else {

@@ -1,5 +1,7 @@
-package com.immutable.credentials.auth;
+package com.immutable.credentials.service;
 
+import com.immutable.credentials.auth.NodeConfig;
+import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.crypto.CryptoUtils;
 
 import java.security.SecureRandom;
@@ -7,19 +9,21 @@ import java.sql.SQLException;
 import java.util.List;
 
 /**
- * High-level admin operations for institutions (VALIDATOR and UNIVERSITY nodes).
- * Provides password generation, user registration, and institution registration.
+ * High-level admin operations for institutions (VALIDATOR and UNIVERSITY
+ * nodes).
+ * Provides password generation, user registration, and institution
+ * registration.
  * All writes go through AuthService so the same JDBC connection is reused.
  *
  * Access rules enforced by the UI:
- *  - All institution nodes (VALIDATOR and UNIVERSITY) can register staff and students.
- *  - Only VALIDATOR nodes can register a new institution (UNIVERSITY account).
- *  - READ_ONLY nodes have no access to this service.
+ * - All institution nodes (VALIDATOR and UNIVERSITY) can register staff and
+ * students.
+ * - Only VALIDATOR nodes can register a new institution (UNIVERSITY account).
+ * - READ_ONLY nodes have no access to this service.
  */
 public class AdminService {
 
-    private static final String ALPHABET =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     private static final int PASSWORD_LENGTH = 12;
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -55,28 +59,34 @@ public class AdminService {
     /**
      * Register a new staff member at this institution.
      * Staff accounts have node type UNIVERSITY, meaning they can issue credentials
-     * but cannot propose or sign blocks. This is the "non-student who can add credentials"
-     * role requested by institutions.
-     * The plain-text password is hashed with SHA-256 before being stored.
+     * but cannot propose or sign blocks.
+     * The plain-text password is hashed with CryptoUtils.applySha256 before being
+     * stored.
      *
      * @param israeliId   the Israeli national ID of the new staff member
      * @param plainPw     the plain-text password (will be hashed before storage)
      * @param displayName the person's display name
-     * @param port        the TCP port for this node (typically the institution's shared port)
+     * @param port        the TCP port for this node (typically the institution's
+     *                    shared port)
      * @param dataDir     the local data directory path for blockchain storage
      * @throws SQLException if a database error occurs or israeliId is already taken
      */
     public void registerStaff(String israeliId, String plainPw,
             String displayName, int port, String dataDir) throws SQLException {
-        String hash = CryptoUtils.sha256(plainPw);
+        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
+            throw new IllegalArgumentException("Invalid Israeli ID: " + israeliId);
+        }
+        String hash = CryptoUtils.applySha256(plainPw);
         authService.registerUser(israeliId, hash, "UNIVERSITY", null,
                 adminConfig.getInstitution(), port, dataDir, displayName);
     }
 
     /**
      * Register a student (read-only) account at this institution.
-     * Students can verify credentials but cannot issue them or access the admin panel.
-     * The plain-text password is hashed with SHA-256 before being stored.
+     * Students can verify credentials but cannot issue them or access the admin
+     * panel.
+     * The plain-text password is hashed with CryptoUtils.applySha256 before being
+     * stored.
      *
      * @param israeliId   the Israeli national ID of the student
      * @param plainPw     the plain-text password (will be hashed before storage)
@@ -87,7 +97,10 @@ public class AdminService {
      */
     public void registerStudent(String israeliId, String plainPw,
             String displayName, int port, String dataDir) throws SQLException {
-        String hash = CryptoUtils.sha256(plainPw);
+        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
+            throw new IllegalArgumentException("Invalid Israeli ID: " + israeliId);
+        }
+        String hash = CryptoUtils.applySha256(plainPw);
         authService.registerUser(israeliId, hash, "READ_ONLY", null,
                 adminConfig.getInstitution(), port, dataDir, displayName);
     }
@@ -96,41 +109,49 @@ public class AdminService {
      * Register a new institution as a UNIVERSITY (non-validator) node.
      * Only VALIDATOR admins may call this method; the UI enforces this by checking
      * NodeConfig.getNodeType().equals("VALIDATOR") before showing the option.
-     * The plain-text password is hashed with SHA-256 before being stored.
+     * The plain-text password is hashed with CryptoUtils.applySha256 before being
+     * stored.
      *
-     * @param israeliId       the Israeli national ID assigned to the institution admin
-     * @param plainPw         the plain-text password (will be hashed before storage)
+     * @param israeliId       the Israeli national ID assigned to the institution
+     *                        admin
+     * @param plainPw         the plain-text password (will be hashed before
+     *                        storage)
      * @param institutionName the name of the new institution
      * @param displayName     the display name for this admin account
      * @param port            the TCP port the institution node will listen on
      * @param dataDir         the local data directory path for blockchain storage
-     * @throws SQLException           if a database error occurs or israeliId is already taken
-     * @throws IllegalStateException  if the calling node is not a VALIDATOR
+     * @throws SQLException          if a database error occurs or israeliId is
+     *                               already taken
+     * @throws IllegalStateException if the calling node is not a VALIDATOR
      */
     public void registerInstitution(String israeliId, String plainPw,
             String institutionName, String displayName,
             int port, String dataDir) throws SQLException {
+        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
+            throw new IllegalArgumentException("Invalid Israeli ID: " + israeliId);
+        }
         if (!"VALIDATOR".equals(adminConfig.getNodeType())) {
             throw new IllegalStateException("Only VALIDATOR nodes may register new institutions.");
         }
-        String hash = CryptoUtils.sha256(plainPw);
+        String hash = CryptoUtils.applySha256(plainPw);
         authService.registerUser(israeliId, hash, "UNIVERSITY", null,
                 institutionName, port, dataDir, displayName);
     }
 
     /**
-     * Load all active validator registrations from the database.
+     * Load all active validators from the database.
      * Used to refresh the PoA validator list without restarting the node.
+     * Each Validator in the returned list has a null private key.
      *
-     * @return list of ValidatorRecord objects, one per active validator
+     * @return list of public-key-only Validator objects, one per active validator
      * @throws SQLException if a database error occurs
      */
-    public List<AuthService.ValidatorRecord> loadValidators() throws SQLException {
+    public List<Validator> loadValidators() throws SQLException {
         return authService.loadValidators();
     }
 
     /**
-     * Push the local validator's public key to the validator_registrations table so
+     * Push the local validator's public key to the validators table so
      * other nodes can load it dynamically. Should be called once after node startup
      * for VALIDATOR nodes.
      *

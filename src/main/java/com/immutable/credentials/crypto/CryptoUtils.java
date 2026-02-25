@@ -18,19 +18,19 @@ public class CryptoUtils {
     /**
      * Compute the SHA-256 hex digest of the given UTF-8 string.
      * This is the canonical hash method used throughout the codebase,
-     * including password hashing for cloud authentication.
+     * including password hashing for cloud authentication and block hashing.
      *
      * @param input the string to hash; must not be null
      * @return a 64-character lowercase hex string representing the SHA-256 digest
      * @throws RuntimeException if SHA-256 is unavailable on this JVM
      */
-    public static String sha256(String input) {
+    public static String applySha256(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(input.getBytes("UTF-8"));
-            StringBuilder hexString = new StringBuilder(64);
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
+            StringBuffer hexString = new StringBuffer();
+            for (int i = 0; i < hash.length; i++) {
+                String hex = Integer.toHexString(0xff & hash[i]);
                 if (hex.length() == 1) hexString.append('0');
                 hexString.append(hex);
             }
@@ -38,16 +38,6 @@ public class CryptoUtils {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * Alias for sha256(String) kept for backward compatibility with existing callers.
-     *
-     * @param input the string to hash
-     * @return hex-encoded SHA-256 hash
-     */
-    public static String applySha256(String input) {
-        return sha256(input);
     }
     
     /**

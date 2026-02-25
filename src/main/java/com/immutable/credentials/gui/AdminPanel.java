@@ -1,7 +1,7 @@
 package com.immutable.credentials.gui;
 
-import com.immutable.credentials.auth.AdminService;
 import com.immutable.credentials.auth.NodeConfig;
+import com.immutable.credentials.service.AdminService;
 import com.immutable.credentials.crypto.CryptoUtils;
 
 import javafx.application.Platform;

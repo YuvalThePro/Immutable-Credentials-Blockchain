@@ -1,10 +1,14 @@
-package com.immutable.credentials.auth;
+package com.immutable.credentials.service;
 
+import com.immutable.credentials.auth.NodeConfig;
+import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.util.Logger;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.PublicKey;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -20,7 +24,7 @@ import java.util.Properties;
  * so that MainWindow can initialise the node without reading node.properties.
  *
  * Password storage: passwords are stored in the database as SHA-256 hex
- * digests computed by CryptoUtils.sha256. The plain-text password is never
+ * digests computed by CryptoUtils.applySha256. The plain-text password is never
  * sent to or stored in the database.
  *
  * SQL schema required (run once in your Supabase SQL editor):
@@ -38,7 +42,7 @@ import java.util.Properties;
  *       created_at    TIMESTAMP     DEFAULT NOW()
  *   );
  *
- *   CREATE TABLE validator_registrations (
+ *   CREATE TABLE validators (
  *       id            SERIAL PRIMARY KEY,
  *       validator_id  VARCHAR(100)  UNIQUE NOT NULL,
  *       institution   VARCHAR(200)  NOT NULL,
@@ -47,13 +51,25 @@ import java.util.Properties;
  *       created_at    TIMESTAMP     DEFAULT NOW()
  *   );
  *
+ *   CREATE TABLE network_settings (
+ *       id                 SERIAL PRIMARY KEY,
+ *       port               INTEGER NOT NULL DEFAULT 8080,
+ *       max_connections    INTEGER NOT NULL DEFAULT 10,
+ *       connect_timeout    BIGINT  NOT NULL DEFAULT 5000,
+ *       sync_interval      BIGINT  NOT NULL DEFAULT 10000,
+ *       discovery_interval BIGINT  NOT NULL DEFAULT 30000
+ *   );
+ *   -- Insert one row with your desired settings:
+ *   INSERT INTO network_settings (port, max_connections, connect_timeout, sync_interval, discovery_interval)
+ *   VALUES (8080, 10, 5000, 10000, 30000);
+ *
  * To insert a test user row (password hashed by Postgres sha256):
  *
  *   INSERT INTO node_users (israeli_id, password_hash, node_type, validator_id,
  *       institution, port, data_dir, display_name)
  *   VALUES (
  *       '123456789',
- *       encode(sha256('mypassword'::bytea), 'hex'),
+ *       encode(sha256('mypassword'), 'hex'),
  *       'VALIDATOR',
  *       'VALIDATOR_UNIVERSITY_A',
  *       'University A',
@@ -95,25 +111,25 @@ public class AuthService {
      * The password is hashed with SHA-256 before the database query so it is
      * never transmitted as plain text.
      *
-     * @param israeliId the 9-digit Israeli national ID
+     * @param id the 9-digit ID
      * @param password  the plain-text password entered by the user
      * @return the NodeConfig for this user on success, or null if the credentials
      *         are invalid or no matching row exists
      * @throws SQLException if a database error occurs that is not simply a
      *                      wrong-password case
      */
-    public NodeConfig login(String israeliId, String password) throws SQLException {
-        String hash = CryptoUtils.sha256(password);
+    public NodeConfig login(String id, String password) throws SQLException {
+        String hash = CryptoUtils.applySha256(password);
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
              PreparedStatement ps = conn.prepareStatement(QUERY)) {
-            ps.setString(1, israeliId);
+            ps.setString(1, id);
             ps.setString(2, hash);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return null; // no matching user
                 }
                 return new NodeConfig(
-                        israeliId,
+                        id,
                         rs.getString("display_name"),
                         rs.getString("node_type"),
                         rs.getString("validator_id"),
@@ -125,25 +141,36 @@ public class AuthService {
     }
 
     /**
-     * Load all active validator registrations from the validator_registrations table.
-     * Returns a list of ValidatorRecord objects containing the validator ID, institution
-     * name, and Base64-encoded public key. Returns an empty list if the table has no rows.
+     * Load all active validators from the validators table.
+     * Each row is decoded into a public-key-only Validator (private key is null).
+     * Rows with a missing or unparseable public key are skipped with a warning.
      *
-     * @return a list of active validator records ordered by validator_id
+     * @return list of Validator objects ordered by validator_id; empty if no rows found
      * @throws SQLException if a database error occurs
      */
-    public List<ValidatorRecord> loadValidators() throws SQLException {
-        List<ValidatorRecord> result = new ArrayList<>();
+    public List<Validator> loadValidators() throws SQLException {
+        List<Validator> result = new ArrayList<>();
         String sql = "SELECT validator_id, institution, public_key "
-                + "FROM validator_registrations WHERE is_active = TRUE ORDER BY validator_id";
+                + "FROM validators WHERE is_active = TRUE ORDER BY validator_id";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                result.add(new ValidatorRecord(
-                        rs.getString("validator_id"),
-                        rs.getString("institution"),
-                        rs.getString("public_key")));
+                String validatorId = rs.getString("validator_id");
+                String institution = rs.getString("institution");
+                String pubKeyBase64 = rs.getString("public_key");
+                if (pubKeyBase64 == null || pubKeyBase64.trim().isEmpty()) {
+                    Logger.log("Warning: Skipping validator " + validatorId
+                            + " (no public key in database)");
+                    continue;
+                }
+                try {
+                    PublicKey publicKey = CryptoUtils.publicKeyFromBase64(pubKeyBase64);
+                    result.add(new Validator(validatorId, validatorId, publicKey, institution));
+                } catch (Exception e) {
+                    Logger.log("Warning: Failed to decode public key for validator "
+                            + validatorId + ": " + e.getMessage());
+                }
             }
         }
         return result;
@@ -152,7 +179,7 @@ public class AuthService {
     /**
      * Register a new user in the node_users table.
      * The password must already be a 64-character SHA-256 hex digest (use
-     * CryptoUtils.sha256 before calling this method).
+     * CryptoUtils.applySha256 before calling this method).
      *
      * @param israeliId    the 9-digit Israeli national ID; must be unique
      * @param passwordHash the SHA-256 hex digest of the password
@@ -185,7 +212,7 @@ public class AuthService {
     }
 
     /**
-     * Register or update a validator's public key in the validator_registrations table.
+     * Register or update a validator's public key in the validators table.
      * Uses an upsert (INSERT ... ON CONFLICT DO UPDATE) so calling this at startup
      * keeps the DB in sync with any locally regenerated key pair.
      *
@@ -196,7 +223,7 @@ public class AuthService {
      */
     public void upsertValidatorKey(String validatorId, String institution,
             String publicKeyBase64) throws SQLException {
-        String sql = "INSERT INTO validator_registrations (validator_id, institution, public_key) "
+        String sql = "INSERT INTO validators (validator_id, institution, public_key) "
                 + "VALUES (?, ?, ?) "
                 + "ON CONFLICT (validator_id) DO UPDATE "
                 + "SET institution = EXCLUDED.institution, public_key = EXCLUDED.public_key, is_active = TRUE";
@@ -210,24 +237,56 @@ public class AuthService {
     }
 
     /**
-     * Immutable record representing a row in the validator_registrations table.
+     * Load network settings from the network_settings table.
+     * Returns built-in defaults if the table has no rows.
+     *
+     * @return a NetworkSettings object populated from the database
+     * @throws SQLException if a database error occurs
      */
-    public static class ValidatorRecord {
-        public final String validatorId;
-        public final String institution;
-        public final String publicKeyBase64;
+    public NetworkSettings loadNetworkSettings() throws SQLException {
+        String sql = "SELECT port, max_connections, connect_timeout, sync_interval, "
+                + "discovery_interval FROM network_settings LIMIT 1";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return new NetworkSettings(
+                        rs.getInt("port"),
+                        rs.getInt("max_connections"),
+                        rs.getLong("connect_timeout"),
+                        rs.getLong("sync_interval"),
+                        rs.getLong("discovery_interval"));
+            }
+        }
+        return new NetworkSettings(8080, 10, 5000L, 10000L, 30000L);
+    }
+
+    /**
+     * Immutable record representing a row from the network_settings table.
+     */
+    public static class NetworkSettings {
+        public final int port;
+        public final int maxConnections;
+        public final long connectTimeout;
+        public final long syncInterval;
+        public final long discoveryInterval;
 
         /**
-         * Create a ValidatorRecord.
+         * Create a NetworkSettings record.
          *
-         * @param validatorId     the unique validator identifier
-         * @param institution     the institution name
-         * @param publicKeyBase64 the Base64-encoded public key
+         * @param port               the TCP listen port for P2P connections
+         * @param maxConnections     the maximum number of simultaneous peer connections
+         * @param connectTimeout     the connection timeout in milliseconds
+         * @param syncInterval       the chain sync interval in milliseconds
+         * @param discoveryInterval  the peer discovery interval in milliseconds
          */
-        public ValidatorRecord(String validatorId, String institution, String publicKeyBase64) {
-            this.validatorId = validatorId;
-            this.institution = institution;
-            this.publicKeyBase64 = publicKeyBase64;
+        public NetworkSettings(int port, int maxConnections, long connectTimeout,
+                long syncInterval, long discoveryInterval) {
+            this.port = port;
+            this.maxConnections = maxConnections;
+            this.connectTimeout = connectTimeout;
+            this.syncInterval = syncInterval;
+            this.discoveryInterval = discoveryInterval;
         }
     }
 
@@ -254,7 +313,7 @@ public class AuthService {
             props.load(in);
         }
         String url = props.getProperty("db.url");
-        if (url == null || url.isBlank()) {
+        if (url == null || url.trim().isEmpty()) {
             throw new IOException("db.url is not set in " + path);
         }
         return url.trim();

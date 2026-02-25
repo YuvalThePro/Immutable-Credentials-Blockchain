@@ -1,13 +1,13 @@
 package com.immutable.credentials.gui;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
-import java.util.Properties;
 
-import com.immutable.credentials.auth.AdminService;
-import com.immutable.credentials.auth.AuthService;
 import com.immutable.credentials.auth.NodeConfig;
+import com.immutable.credentials.service.AdminService;
+import com.immutable.credentials.service.AuthService;
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.core.Node;
@@ -148,7 +148,7 @@ public class MainWindow extends Application {
 
         Scene scene = new Scene(rootLayout, 900, 650);
         String windowTitle = "Immutable Credentials Blockchain";
-        if (nodeConfig.getDisplayName() != null && !nodeConfig.getDisplayName().isBlank()) {
+        if (nodeConfig.getDisplayName() != null && !nodeConfig.getDisplayName().trim().isEmpty()) {
             windowTitle += " — " + nodeConfig.getDisplayName();
         }
         primaryStage.setTitle(windowTitle);
@@ -163,44 +163,37 @@ public class MainWindow extends Application {
     }
 
     /**
-     * Initialise all four service instances that act as the middleware layer
+     * Initialise all service instances that act as the middleware layer
      * between the UI and the backend Node.
-     * Must be called before buildTabPane() or any panel is constructed.
-     * Node identity (type, validator ID, institution, port, data directory) comes
-     * from the NodeConfig fetched from the cloud database at login.
-     * Network settings (max connections, timeouts, sync intervals) are still
-     * read from network.properties.
-     * The shared validator list (public keys) is still read from validators.properties;
-     * validator nodes generate or load their private key pair from the keys/ directory.
+     * All configuration is loaded from the cloud database via AuthService.
+     * The only local file access is reading or generating the private key
+     * for validator nodes in the keys/ directory.
      *
      * @param dbConfig the node configuration returned by the cloud database login
-     * @throws RuntimeException if the validator list cannot be loaded or the node cannot be constructed
+     * @throws RuntimeException if configuration cannot be loaded or the node cannot be constructed
      */
     private void initServices(NodeConfig dbConfig) throws RuntimeException {
         try {
-            // Node identity comes from the database, not node.properties
             String nodeType = dbConfig.getNodeType().toLowerCase().replace('_', '-');
-            // "validator" | "university" | "read-only"
             int port = dbConfig.getPort();
             String dataDir = dbConfig.getDataDir();
             String storageFile = dataDir + "/blockchain.jsonl";
             String address = "localhost";
 
-            // The shared validator public-key list still lives in validators.properties.
-            // loadLocalValidator will upsert the local validator with its private key.
-            List<Validator> validators = ConfigLoader.loadValidatorList();
+            // Load the shared validator list from the cloud database.
+            List<Validator> validators = ConfigLoader.loadValidatorList(authService);
 
             Node node;
             if ("validator".equals(nodeType)) {
                 String validatorId = dbConfig.getValidatorId();
-                if (validatorId == null || validatorId.isBlank()) {
+                if (validatorId == null || validatorId.trim().isEmpty()) {
                     throw new RuntimeException("validator_id is not set for this account in the database.");
                 }
-                // Loads or generates the key pair; updates validators list in-place
-                Validator localValidator = ConfigLoader.loadLocalValidator(validatorId, validators);
+                // Loads or generates key pair; public key synced to DB if new
+                Validator localValidator = ConfigLoader.loadLocalValidator(validatorId, validators, authService);
                 if (localValidator == null) {
                     throw new RuntimeException("Validator '" + validatorId
-                            + "' not found in validators.properties");
+                            + "' not found in the database validators table.");
                 }
                 localValidator.activate();
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
@@ -209,8 +202,8 @@ public class MainWindow extends Application {
             } else {
                 if (validators.isEmpty()) {
                     throw new RuntimeException(
-                            "No valid validators found in validators.properties. "
-                                    + "At least one validator node must register its public key first.");
+                            "No active validators found in the database. "
+                                    + "At least one validator must register their public key first.");
                 }
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
                 if ("university".equals(nodeType)) {
@@ -220,16 +213,10 @@ public class MainWindow extends Application {
                 }
             }
 
-            // Network settings are still read from network.properties
-            Properties networkConfig = ConfigLoader.loadNetworkConfig();
-            int networkPort = ConfigLoader.getNetworkPort(networkConfig);
-            int maxConnections = ConfigLoader.getMaxConnections(networkConfig);
-            long connectTimeout = ConfigLoader.getConnectionTimeout(networkConfig);
-            long syncInterval = ConfigLoader.getSyncInterval(networkConfig);
-            long discoveryInterval = Long.parseLong(
-                    networkConfig.getProperty("network.discovery.interval", "30000"));
-            P2PNetwork network = new P2PNetwork(node, networkPort, maxConnections,
-                    (int) connectTimeout, discoveryInterval, syncInterval);
+            // Load all network settings from the database.
+            AuthService.NetworkSettings net = ConfigLoader.loadNetworkSettings(authService);
+            P2PNetwork network = new P2PNetwork(node, net.port, net.maxConnections,
+                    (int) net.connectTimeout, net.discoveryInterval, net.syncInterval);
             node.setNetwork(network);
 
             nodeService = new NodeService(node);
@@ -243,7 +230,7 @@ public class MainWindow extends Application {
                 adminService = new AdminService(authService, dbConfig);
             }
 
-        } catch (IOException e) {
+        } catch (IOException | SQLException e) {
             throw new RuntimeException("Failed to initialise node: " + e.getMessage(), e);
         }
     }

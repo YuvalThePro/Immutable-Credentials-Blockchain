@@ -115,7 +115,7 @@ public class MainWindow extends Application {
             e.consume();
             onExit();
         });
-        primaryStage.show();
+        this.primaryStage.show();
 
         refreshStatusBar();
     }

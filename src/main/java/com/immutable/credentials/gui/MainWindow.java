@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 
+import com.immutable.credentials.auth.AuthService;
+import com.immutable.credentials.auth.NodeConfig;
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.core.Node;
@@ -93,15 +95,42 @@ public class MainWindow extends Application {
 
     /**
      * JavaFX application entry point.
-     * Initialises service instances, builds all UI components, wires
-     * event handlers, and shows the primary stage.
+     * Shows the login dialog, authenticates the user against the cloud database,
+     * initialises service instances with the fetched node configuration, builds
+     * all UI components, wires event handlers, and shows the primary stage.
      *
-     * @param primaryStage the primary {@link Stage} provided by the JavaFX runtime
+     * @param primaryStage the primary Stage provided by the JavaFX runtime
      */
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
-        initServices();
+
+        // Load the AuthService from config/database.properties
+        AuthService authService;
+        try {
+            authService = new AuthService();
+        } catch (Exception e) {
+            showStartupError("Cannot read database configuration:\n" + e.getMessage()
+                    + "\n\nPlease fill in config/database.properties with your Supabase connection URL.");
+            return;
+        }
+
+        if (!authService.isConfigured()) {
+            showStartupError("Database is not yet configured.\n\n"
+                    + "Edit config/database.properties and replace the REPLACE_ME "
+                    + "placeholders with your Supabase connection details.");
+            return;
+        }
+
+        // Show the login dialog — blocks until the user logs in or cancels
+        LoginDialog loginDialog = new LoginDialog(primaryStage, authService);
+        NodeConfig nodeConfig = loginDialog.getResult();
+        if (nodeConfig == null) {
+            Platform.exit();
+            return;
+        }
+
+        initServices(nodeConfig);
 
         rootLayout = new BorderPane();
         rootLayout.setTop(buildMenuBar());
@@ -109,7 +138,11 @@ public class MainWindow extends Application {
         rootLayout.setBottom(buildStatusBar());
 
         Scene scene = new Scene(rootLayout, 900, 650);
-        primaryStage.setTitle("Immutable Credentials Blockchain");
+        String windowTitle = "Immutable Credentials Blockchain";
+        if (nodeConfig.getDisplayName() != null && !nodeConfig.getDisplayName().isBlank()) {
+            windowTitle += " — " + nodeConfig.getDisplayName();
+        }
+        primaryStage.setTitle(windowTitle);
         primaryStage.setScene(scene);
         primaryStage.setOnCloseRequest(e -> {
             e.consume();
@@ -122,36 +155,37 @@ public class MainWindow extends Application {
 
     /**
      * Initialise all four service instances that act as the middleware layer
-     * between the UI and the backend {@code Node}.
-     * Must be called before {@link #buildTabPane()} or any panel is constructed.
+     * between the UI and the backend Node.
+     * Must be called before buildTabPane() or any panel is constructed.
+     * Node identity (type, validator ID, institution, port, data directory) comes
+     * from the NodeConfig fetched from the cloud database at login.
+     * Network settings (max connections, timeouts, sync intervals) are still
+     * read from network.properties.
+     * The shared validator list (public keys) is still read from validators.properties;
+     * validator nodes generate or load their private key pair from the keys/ directory.
      *
-     * <p>
-     * Reads {@code node.properties} to determine the node type, then loads
-     * validators from {@code validators.properties}. On first run as a validator,
-     * the key pair is auto-generated and the public key written back to config.
-     * </p>
-     *
-     * @throws RuntimeException if configuration cannot be loaded or the node
-     *                          cannot be constructed
+     * @param dbConfig the node configuration returned by the cloud database login
+     * @throws RuntimeException if the validator list cannot be loaded or the node cannot be constructed
      */
-    private void initServices() throws RuntimeException {
+    private void initServices(NodeConfig dbConfig) throws RuntimeException {
         try {
-            Properties nodeConfig = ConfigLoader.loadNodeConfig();
-            String nodeType = ConfigLoader.getNodeType(nodeConfig);
-            int port = ConfigLoader.getPort(nodeConfig);
-            String dataDir = ConfigLoader.getDataDir(nodeConfig);
+            // Node identity comes from the database, not node.properties
+            String nodeType = dbConfig.getNodeType().toLowerCase().replace('_', '-');
+            // "validator" | "university" | "read-only"
+            int port = dbConfig.getPort();
+            String dataDir = dbConfig.getDataDir();
             String storageFile = dataDir + "/blockchain.jsonl";
             String address = "localhost";
 
-            // Every node loads the same shared validator list (public keys only).
+            // The shared validator public-key list still lives in validators.properties.
             // loadLocalValidator will upsert the local validator with its private key.
             List<Validator> validators = ConfigLoader.loadValidatorList();
 
             Node node;
             if ("validator".equals(nodeType)) {
-                String validatorId = ConfigLoader.getValidatorId(nodeConfig);
-                if (validatorId == null) {
-                    throw new RuntimeException("node.validator.id is not set in node.properties");
+                String validatorId = dbConfig.getValidatorId();
+                if (validatorId == null || validatorId.isBlank()) {
+                    throw new RuntimeException("validator_id is not set for this account in the database.");
                 }
                 // Loads or generates the key pair; updates validators list in-place
                 Validator localValidator = ConfigLoader.loadLocalValidator(validatorId, validators);
@@ -171,14 +205,13 @@ public class MainWindow extends Application {
                 }
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
                 if ("university".equals(nodeType)) {
-                    String institution = ConfigLoader.getInstitution(nodeConfig);
-                    node = new Node(institution, address, port, poa, storageFile, true);
+                    node = new Node(dbConfig.getInstitution(), address, port, poa, storageFile, true);
                 } else {
                     node = new Node("readonly-" + port, address, port, poa, storageFile);
                 }
             }
 
-            // Initialize P2P network from network.properties
+            // Network settings are still read from network.properties
             Properties networkConfig = ConfigLoader.loadNetworkConfig();
             int networkPort = ConfigLoader.getNetworkPort(networkConfig);
             int maxConnections = ConfigLoader.getMaxConnections(networkConfig);
@@ -441,6 +474,21 @@ public class MainWindow extends Application {
     }
 
     // ===== Helpers =====
+
+    /**
+     * Show a blocking error alert before the main window is displayed.
+     * Used when the database configuration is missing or invalid at startup.
+     *
+     * @param message the error text to display
+     */
+    private void showStartupError(String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Startup Error");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+        Platform.exit();
+    }
 
     private void showError(String title, String message) {
         Alert alert = new Alert(AlertType.ERROR);

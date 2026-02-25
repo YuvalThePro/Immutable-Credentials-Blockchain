@@ -3,15 +3,24 @@ package com.immutable.credentials.gui;
 import com.immutable.credentials.model.Credential;
 import com.immutable.credentials.service.CredentialService;
 
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -63,7 +72,22 @@ public class VerifyCredentialPanel extends VBox {
      * @throws IllegalArgumentException if {@code credentialService} is {@code null}
      */
     public VerifyCredentialPanel(CredentialService credentialService) {
+        if (credentialService == null)
+            throw new IllegalArgumentException("CredentialService must not be null");
         this.credentialService = credentialService;
+
+        setSpacing(10);
+        setPadding(new Insets(15));
+
+        statusLabel = new Label("Enter a Student ID or Credential ID to search.");
+        statusLabel.setStyle("-fx-text-fill: #555555;");
+
+        getChildren().addAll(
+                buildSearchBar(),
+                new Separator(),
+                statusLabel,
+                buildResultsArea());
+        VBox.setVgrow(resultsScrollPane, Priority.ALWAYS);
     }
 
     /**
@@ -83,7 +107,28 @@ public class VerifyCredentialPanel extends VBox {
      * @return an {@link HBox} containing all search bar controls
      */
     private HBox buildSearchBar() {
-        return null;
+        ObservableList<String> options = FXCollections.observableArrayList(
+                "Student ID", "Credential ID");
+        searchTypeCombo = new ComboBox<>(options);
+        searchTypeCombo.getSelectionModel().selectFirst();
+        searchTypeCombo.setPromptText("Search by…");
+
+        searchField = new TextField();
+        searchField.setPromptText("Enter ID");
+        searchField.setPrefWidth(250);
+        searchField.setOnAction(e -> onSearch());
+
+        searchButton = new Button("Search");
+        searchButton.setDefaultButton(true);
+        searchButton.setOnAction(e -> onSearch());
+
+        clearButton = new Button("Clear");
+        clearButton.setOnAction(e -> clearResults());
+
+        HBox hbox = new HBox(10, searchTypeCombo, searchField, searchButton, clearButton);
+        hbox.setPadding(new Insets(10, 0, 10, 0));
+        hbox.setAlignment(Pos.CENTER_LEFT);
+        return hbox;
     }
 
     /**
@@ -92,7 +137,13 @@ public class VerifyCredentialPanel extends VBox {
      * @return a {@link ScrollPane} wrapping the results {@link VBox}
      */
     private ScrollPane buildResultsArea() {
-        return null;
+        resultsContainer = new VBox(10);
+        resultsContainer.setPadding(new Insets(10));
+
+        resultsScrollPane = new ScrollPane(resultsContainer);
+        resultsScrollPane.setFitToWidth(true);
+        resultsScrollPane.setStyle("-fx-background-color: transparent;");
+        return resultsScrollPane;
     }
 
     /**
@@ -111,6 +162,41 @@ public class VerifyCredentialPanel extends VBox {
      * </ol>
      */
     private void onSearch() {
+        String query = searchField.getText() == null ? "" : searchField.getText().trim();
+        if (query.isEmpty()) {
+            updateStatus("Please enter an ID to search.");
+            return;
+        }
+
+        String searchType = searchTypeCombo.getValue();
+        if (searchType == null) {
+            updateStatus("Please select a search type.");
+            return;
+        }
+
+        try {
+            List<Credential> results;
+            if ("Credential ID".equals(searchType)) {
+                Credential c = credentialService.getCredentialById(query);
+                results = (c != null) ? Collections.singletonList(c) : Collections.emptyList();
+            } else {
+                // Student ID
+                results = credentialService.searchByStudentId(query);
+            }
+
+            if (results == null || results.isEmpty()) {
+                showNotFound();
+            } else {
+                displayCredentials(results);
+                updateStatus("Found " + results.size() + " result(s).");
+            }
+        } catch (Exception e) {
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("Search Error");
+            alert.setHeaderText(null);
+            alert.setContentText("Search failed: " + e.getMessage());
+            alert.showAndWait();
+        }
     }
 
     /**
@@ -126,6 +212,10 @@ public class VerifyCredentialPanel extends VBox {
      * @param credentials the non-null, non-empty list of credentials to display
      */
     private void displayCredentials(List<Credential> credentials) {
+        resultsContainer.getChildren().clear();
+        for (Credential c : credentials) {
+            resultsContainer.getChildren().add(buildCredentialCard(c));
+        }
     }
 
     /**
@@ -135,7 +225,47 @@ public class VerifyCredentialPanel extends VBox {
      * @return a {@link GridPane} formatted as a self-contained credential card
      */
     private GridPane buildCredentialCard(Credential credential) {
-        return null;
+        GridPane card = new GridPane();
+        card.setHgap(15);
+        card.setVgap(6);
+        card.setPadding(new Insets(12));
+        card.setStyle(
+                "-fx-background-color: #ffffff;" +
+                        "-fx-border-color: #cccccc;" +
+                        "-fx-border-radius: 6;" +
+                        "-fx-background-radius: 6;");
+
+        int row = 0;
+        card.add(boldLabel("Student Name:"), 0, row);
+        card.add(new Label(credential.getStudentName()), 1, row++);
+        card.add(boldLabel("Student ID:"), 0, row);
+        card.add(new Label(credential.getStudentId()), 1, row++);
+        card.add(boldLabel("Credential ID:"), 0, row);
+        card.add(new Label(credential.getCredentialId()), 1, row++);
+        card.add(boldLabel("Degree:"), 0, row);
+        card.add(new Label(credential.getDegree()), 1, row++);
+        card.add(boldLabel("Institution:"), 0, row);
+        card.add(new Label(credential.getInstitution()), 1, row++);
+        card.add(boldLabel("Date Awarded:"), 0, row);
+        card.add(new Label(
+                credential.getDateAwarded() != null ? credential.getDateAwarded().toString() : "N/A"), 1, row++);
+
+        Label badge = new Label("✓  Verified on Blockchain");
+        badge.setStyle(
+                "-fx-text-fill: white;" +
+                        "-fx-background-color: #2e7d32;" +
+                        "-fx-background-radius: 4;" +
+                        "-fx-padding: 3 8 3 8;");
+        card.add(badge, 1, row);
+
+        return card;
+    }
+
+    /** Small helper to create a right-aligned bold label. */
+    private Label boldLabel(String text) {
+        Label l = new Label(text);
+        l.setStyle("-fx-font-weight: bold;");
+        return l;
     }
 
     /**
@@ -143,6 +273,11 @@ public class VerifyCredentialPanel extends VBox {
      * Called when the service returns a null or empty result.
      */
     private void showNotFound() {
+        resultsContainer.getChildren().clear();
+        Label msg = new Label("No credentials found for the given ID.");
+        msg.setStyle("-fx-text-fill: #c62828; -fx-font-size: 13;");
+        resultsContainer.getChildren().add(msg);
+        updateStatus("No results found.");
     }
 
     /**
@@ -150,6 +285,10 @@ public class VerifyCredentialPanel extends VBox {
      * and empty the text field.
      */
     private void clearResults() {
+        searchField.clear();
+        searchTypeCombo.getSelectionModel().selectFirst();
+        resultsContainer.getChildren().clear();
+        updateStatus("Enter a Student ID or Credential ID to search.");
     }
 
     /**
@@ -158,5 +297,6 @@ public class VerifyCredentialPanel extends VBox {
      * @param message the message to display (e.g. "Found 3 result(s)")
      */
     private void updateStatus(String message) {
+        statusLabel.setText(message);
     }
 }

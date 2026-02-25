@@ -1,6 +1,12 @@
 package com.immutable.credentials.crypto;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.*;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 /**
@@ -94,6 +100,65 @@ public class CryptoUtils {
      */
     public static String keyToString(Key key) {
         return Base64.getEncoder().encodeToString(key.getEncoded());
+    }
+
+    /**
+     * Reconstruct an RSA PublicKey from a Base64-encoded X.509 string.
+     *
+     * @param base64 the Base64-encoded public key
+     * @return the reconstructed PublicKey
+     * @throws IllegalArgumentException if the string is null/empty or cannot be parsed
+     */
+    public static PublicKey publicKeyFromBase64(String base64) {
+        if (base64 == null || base64.trim().isEmpty()) {
+            throw new IllegalArgumentException("Public key string cannot be null or empty");
+        }
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(base64.replaceAll("\\s+", ""));
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            return kf.generatePublic(spec);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse public key: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Reconstruct an RSA PrivateKey from a Base64-encoded PKCS#8 string.
+     *
+     * @param base64 the Base64-encoded private key
+     * @return the reconstructed PrivateKey
+     * @throws IllegalArgumentException if the string is null/empty or cannot be parsed
+     */
+    public static PrivateKey privateKeyFromBase64(String base64) {
+        if (base64 == null || base64.trim().isEmpty()) {
+            throw new IllegalArgumentException("Private key string cannot be null or empty");
+        }
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(base64.replaceAll("\\s+", ""));
+            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            return kf.generatePrivate(spec);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse private key: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generate a key pair AND persist the private key to disk.
+     * Returns the full KeyPair so the caller can extract the public key
+     * (e.g. to register it in validators.properties).
+     *
+     * @param privateKeyPath the file path to save the private key
+     * @return the generated KeyPair
+     * @throws IOException if the private key cannot be saved
+     */
+    public static KeyPair generateAndSaveKeyPair(String privateKeyPath) throws IOException {
+        KeyPair keyPair = generateKeyPair();
+        Path path = Paths.get(privateKeyPath);
+        Files.createDirectories(path.getParent());
+        Files.write(path, keyToString(keyPair.getPrivate()).getBytes("UTF-8"));
+        return keyPair;
     }
 
 

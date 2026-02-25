@@ -44,6 +44,21 @@ public class Validator {
     }
 
     /**
+     * Create a public-key-only validator (remote / verification-only).
+     * Used when building the PoA validator list from shared configuration.
+     * This validator can verify signatures but cannot sign blocks.
+     *
+     * @param validatorId   the unique identifier for this validator
+     * @param validatorName the human-readable name of the validator
+     * @param publicKey     the public key for signature verification
+     * @param institution   the associated university or institution
+     */
+    public Validator(String validatorId, String validatorName,
+            PublicKey publicKey, String institution) {
+        this(validatorId, validatorName, publicKey, null, institution);
+    }
+
+    /**
      * Sign a block with the validator's private key.
      * 
      * @param block the block to sign
@@ -150,6 +165,15 @@ public class Validator {
      */
     public boolean isActive() {
         return this.isActive;
+    }
+
+    /**
+     * Check if this validator holds a private key and can sign blocks.
+     *
+     * @return true if a private key is present, false for public-key-only validators
+     */
+    public boolean hasPrivateKey() {
+        return this.privateKey != null;
     }
 
     @Override

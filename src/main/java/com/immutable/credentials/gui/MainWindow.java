@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 
+import com.immutable.credentials.auth.AdminService;
 import com.immutable.credentials.auth.AuthService;
 import com.immutable.credentials.auth.NodeConfig;
 import com.immutable.credentials.consensus.ProofOfAuthority;
@@ -77,6 +78,11 @@ public class MainWindow extends Application {
     private CredentialService credentialService;
     private BlockchainService blockchainService;
     private NetworkService networkService;
+    private AdminService adminService;
+
+    // ===== Auth / Session =====
+    private AuthService authService;
+    private NodeConfig nodeConfig;
 
     // ===== UI Shell =====
     private Stage primaryStage;
@@ -92,6 +98,7 @@ public class MainWindow extends Application {
     private VerifyCredentialPanel verifyPanel;
     private BlockchainViewerPanel blockchainPanel;
     private NetworkStatusPanel networkPanel;
+    private AdminPanel adminPanel;
 
     /**
      * JavaFX application entry point.
@@ -130,6 +137,8 @@ public class MainWindow extends Application {
             return;
         }
 
+        this.authService = authService;
+        this.nodeConfig = nodeConfig;
         initServices(nodeConfig);
 
         rootLayout = new BorderPane();
@@ -228,6 +237,12 @@ public class MainWindow extends Application {
             blockchainService = new BlockchainService(node);
             networkService = new NetworkService(node);
 
+            // Create AdminService for institution nodes (VALIDATOR and UNIVERSITY).
+            // READ_ONLY nodes do not get an admin service or panel.
+            if (node.isUniversity()) {
+                adminService = new AdminService(authService, dbConfig);
+            }
+
         } catch (IOException e) {
             throw new RuntimeException("Failed to initialise node: " + e.getMessage(), e);
         }
@@ -277,19 +292,13 @@ public class MainWindow extends Application {
     }
 
     /**
-     * Construct and return the {@link TabPane} containing all four panels.
+     * Construct and return the TabPane containing all panels.
+     * Includes the Issue Credential, Verify Credential, Blockchain Viewer,
+     * and Network Status tabs for all nodes. An additional Admin Panel tab
+     * is added for institution nodes (VALIDATOR and UNIVERSITY) and is hidden
+     * for READ_ONLY nodes.
      *
-     * <p>
-     * Tabs (in order):
-     * </p>
-     * <ol>
-     * <li><b>Issue Credential</b> – visible only when the node is a validator</li>
-     * <li><b>Verify Credential</b> – available to all node types</li>
-     * <li><b>Blockchain Viewer</b> – available to all node types</li>
-     * <li><b>Network Status</b> – available to all node types</li>
-     * </ol>
-     *
-     * @return a configured {@link TabPane} with all panels attached
+     * @return a configured TabPane with all panels attached
      */
     private TabPane buildTabPane() {
         issuePanel = new IssueCredentialPanel(credentialService, nodeService);
@@ -308,6 +317,15 @@ public class MainWindow extends Application {
         networkTab.setClosable(false);
 
         tabPane = new TabPane(issueTab, verifyTab, blockchainTab, networkTab);
+
+        // Admin tab — only for institution nodes
+        if (adminService != null) {
+            adminPanel = new AdminPanel(adminService);
+            Tab adminTab = new Tab("Admin Panel", adminPanel);
+            adminTab.setClosable(false);
+            tabPane.getTabs().add(adminTab);
+        }
+
         updateIssueTabVisibility();
         return tabPane;
     }

@@ -17,27 +17,10 @@ import java.util.List;
 /**
  * JavaFX panel that allows any node (validator or read-only) to search for
  * and verify academic credentials stored on the blockchain.
- *
- * <p>
  * The panel never queries the backend directly; all lookups are performed
- * through {@link CredentialService}, which acts as the middleware layer.
- * </p>
- *
- * <p>
- * UI layout:
- * </p>
- * 
- * <pre>
- *  ┌──────────────────────────────────────────────┐
- *  │  Search type: [Student ID ▾]  [__________]   │
- *  │                                [ Search ]    │
- *  ├──────────────────────────────────────────────┤
- *  │  Results area (scrollable)                   │
- *  │  ┌────────────────────────────────────────┐  │
- *  │  │  Credential card(s) or "Not Found"     │  │
- *  │  └────────────────────────────────────────┘  │
- *  └──────────────────────────────────────────────┘
- * </pre>
+ * through CredentialService, which acts as the middleware layer.
+ * The UI contains a search bar with a search-type selector and text field at the top,
+ * and a scrollable results area below that displays credential cards or a Not Found message.
  */
 public class VerifyCredentialPanel extends VBox {
 
@@ -69,18 +52,10 @@ public class VerifyCredentialPanel extends VBox {
     /**
      * Build the top search bar containing the search-type selector,
      * the search text field, and the action buttons.
-     *
-     * <p>
-     * Search type options in the {@link ComboBox}:
-     * </p>
-     * <ul>
-     * <li><b>Student ID</b> – delegates to
-     * {@link CredentialService#searchByStudentId(String)}</li>
-     * <li><b>Credential ID</b> – delegates to
-     * {@link CredentialService#getCredentialById(String)}</li>
-     * </ul>
-     *
-     * @return an {@link HBox} containing all search bar controls
+     * The Student ID option delegates to CredentialService.searchByStudentId.
+     * The Credential ID option delegates to CredentialService.getCredentialById.
+     * 
+     * @return an HBox containing all search bar controls
      */
     private HBox buildSearchBar() {
         return null;
@@ -88,41 +63,27 @@ public class VerifyCredentialPanel extends VBox {
 
     /**
      * Build the scrollable results area where found credential cards are rendered.
-     *
-     * @return a {@link ScrollPane} wrapping the results {@link VBox}
+     * 
+     * @return a ScrollPane wrapping the results VBox
      */
     private ScrollPane buildResultsArea() {
         return null;
     }
 
     /**
-     * Handler invoked when the user clicks <em>Search</em> or presses Enter
-     * in the search field.
-     *
-     * <p>
-     * Execution flow:
-     * </p>
-     * <ol>
-     * <li>Read the selected search type and query string.</li>
-     * <li>Validate that the query is not blank.</li>
-     * <li>Delegate to the appropriate {@link CredentialService} method.</li>
-     * <li>Render results via {@link #displayCredentials(List)} or
-     * {@link #showNotFound()} if the result is empty.</li>
-     * </ol>
+     * Handler invoked when the user clicks Search or presses Enter in the search field.
+     * Reads the selected search type and query string, validates that the query is not blank,
+     * delegates to the appropriate CredentialService method, and renders results
+     * or shows a Not Found message if the result is empty.
      */
     private void onSearch() {
     }
 
     /**
-     * Render a list of found credentials as individual visual cards inside
-     * the results container.
-     *
-     * <p>
-     * Each card displays: student name, student ID, credential ID,
-     * degree, institution, date awarded, and a coloured
-     * <em>"Verified on Blockchain"</em> badge.
-     * </p>
-     *
+     * Render a list of found credentials as individual visual cards inside the results container.
+     * Each card displays the student name, student ID, credential ID, degree, institution,
+     * date awarded, and a coloured Verified on Blockchain badge.
+     * 
      * @param credentials the non-null, non-empty list of credentials to display
      */
     private void displayCredentials(List<Credential> credentials) {
@@ -130,9 +91,9 @@ public class VerifyCredentialPanel extends VBox {
 
     /**
      * Build and return a single credential card node for the given credential.
-     *
+     * 
      * @param credential the credential whose details should be rendered
-     * @return a {@link GridPane} formatted as a self-contained credential card
+     * @return a GridPane formatted as a self-contained credential card
      */
     private GridPane buildCredentialCard(Credential credential) {
         return null;

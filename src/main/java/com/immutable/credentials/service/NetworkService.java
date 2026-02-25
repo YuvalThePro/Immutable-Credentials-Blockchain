@@ -11,11 +11,10 @@ public class NetworkService {
     private final Node node;
 
     /**
-     * Construct a new {@code NetworkService} bound to the given node.
-     *
-     * @param node the {@link Node} instance owning the P2P network;
-     *             must not be {@code null}
-     * @throws IllegalArgumentException if {@code node} is {@code null}
+     * Construct a new NetworkService bound to the given node.
+     * 
+     * @param node the Node instance owning the P2P network; must not be null
+     * @throws IllegalArgumentException if node is null
      */
     public NetworkService(Node node) {
         this.node = node;
@@ -23,8 +22,8 @@ public class NetworkService {
 
     /**
      * Retrieve the list of peers that are currently connected to this node.
-     *
-     * @return a non-null, possibly empty, list of {@link Peer} objects
+     * 
+     * @return a non-null, possibly empty, list of Peer objects
      */
     public List<Peer> getConnectedPeers() {
         return node.getNetwork().getPeerList();
@@ -32,8 +31,8 @@ public class NetworkService {
 
     /**
      * Return the number of peers currently connected to this node.
-     *
-     * @return the connected peer count; {@code 0} if isolated or network is stopped
+     * 
+     * @return the connected peer count; 0 if isolated or network is stopped
      */
     public int getPeerCount() {
         return getConnectedPeers().size();
@@ -41,19 +40,13 @@ public class NetworkService {
 
     /**
      * Attempt to establish a TCP connection to the peer at the specified address.
-     *
-     * <p>
-     * Validates the host and port before forwarding the call to
-     * {@link com.immutable.credentials.network.P2PNetwork#connectToPeer(String, int)}.
-     * This is a fire-and-forget operation; use {@link #getConnectedPeers()}
-     * afterwards
+     * Validates the host and port before forwarding the call to P2PNetwork.connectToPeer.
+     * This is a fire-and-forget operation; use getConnectedPeers() afterwards
      * to confirm the peer was added.
-     * </p>
-     *
+     * 
      * @param host the hostname or IP address of the target peer; must not be blank
-     * @param port the port number the target peer is listening on (1024–65535)
-     * @throws IllegalArgumentException if {@code host} is blank or {@code port} is
-     *                                  outside the valid range
+     * @param port the port number the target peer is listening on (1024-65535)
+     * @throws IllegalArgumentException if host is blank or port is outside the valid range
      * @throws IllegalStateException    if the network is not currently running
      */
     public void connectToPeer(String host, int port) {
@@ -68,9 +61,8 @@ public class NetworkService {
 
     /**
      * Report whether the P2P network listener is actively running on this node.
-     *
-     * @return {@code true} if the network is started and accepting connections;
-     *         {@code false} otherwise
+     * 
+     * @return true if the network is started and accepting connections; false otherwise
      */
     public boolean isNetworkRunning() {
         return node.getNetwork() != null && node.getNetwork().isRunning();
@@ -79,12 +71,8 @@ public class NetworkService {
     /**
      * Return a human-readable synchronisation status string suitable for
      * display in the Network Status panel.
-     *
-     * <p>
-     * Examples: {@code "Synced"}, {@code "Syncing (block 42/100)"},
-     * {@code "Isolated – no peers"}.
-     * </p>
-     *
+     * Examples include "Synced", "Syncing (block 42/100)", and "Isolated - no peers".
+     * 
      * @return a non-null status string
      */
     public String getSyncStatusDescription() {

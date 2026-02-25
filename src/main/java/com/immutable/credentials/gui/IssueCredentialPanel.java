@@ -12,44 +12,17 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 /**
- * JavaFX panel that provides a form for issuing new academic credentials
- * onto the blockchain.
- *
- * <p>
- * <b>University and validator nodes only.</b> This panel is disabled entirely
- * for read-only nodes (student portals, employer verifiers, public explorers).
- * Any accredited institution — whether a plain university node or a
- * consensus-validator node — may submit credentials:
- * </p>
- * <ul>
- * <li><b>Validator nodes</b> (e.g. MIT, Oxford) can both issue credentials
- * <em>and</em> seal/approve blocks via Proof-of-Authority consensus.</li>
- * <li><b>University nodes</b> may submit credentials; the credential is pooled
- * and finalised once a quorum of validators approves the containing block.
- * They do <em>not</em> sign blocks themselves.</li>
- * </ul>
- * <p>
- * {@link NodeService#isUniversity()} is used to enable/disable the form;
- * when {@code false} the panel shows a notice explaining that only
- * accredited university or validator nodes may issue credentials.
- * </p>
- *
- * <p>
- * Form fields presented to the user:
- * </p>
- * <ul>
- * <li>Student Name</li>
- * <li>Student ID</li>
- * <li>Degree / Certification</li>
- * <li>Institution</li>
- * <li>Date Awarded</li>
- * </ul>
- *
- * <p>
- * On submission the panel delegates entirely to
- * {@link CredentialService#issueCredential} – it never calls the
- * backend {@code Node} directly.
- * </p>
+ * JavaFX panel that provides a form for issuing new academic credentials onto the blockchain.
+ * This panel is intended for university and validator nodes only and is disabled entirely
+ * for read-only nodes such as student portals, employer verifiers, and public explorers.
+ * Any accredited institution, whether a plain university node or a consensus-validator node,
+ * may submit credentials. Validator nodes can both issue credentials and seal/approve blocks
+ * via Proof-of-Authority consensus. University nodes may submit credentials; the credential
+ * is pooled and finalised once a quorum of validators approves the containing block.
+ * NodeService.isUniversity() is used to enable or disable the form.
+ * Form fields include Student Name, Student ID, Degree/Certification, Institution, and Date Awarded.
+ * On submission the panel delegates entirely to CredentialService.issueCredential
+ * and never calls the backend Node directly.
  */
 public class IssueCredentialPanel extends VBox {
 
@@ -107,18 +80,10 @@ public class IssueCredentialPanel extends VBox {
     }
 
     /**
-     * Handler invoked when the user clicks <em>Issue Credential</em>.
-     *
-     * <p>
-     * Execution flow:
-     * </p>
-     * <ol>
-     * <li>Read and validate all form fields (shows inline errors if blank).</li>
-     * <li>Call {@link CredentialService#issueCredential} with the collected
-     * data.</li>
-     * <li>Display a success or failure message via {@link #showFeedback}.</li>
-     * <li>On success, call {@link #clearForm()} to reset the form.</li>
-     * </ol>
+     * Handler invoked when the user clicks Issue Credential.
+     * Reads and validates all form fields, showing inline errors if any are blank.
+     * Calls CredentialService.issueCredential with the collected data.
+     * Displays a success or failure message and clears the form on success.
      */
     private void onIssueCredential() {
     }
@@ -132,20 +97,14 @@ public class IssueCredentialPanel extends VBox {
     }
 
     /**
-     * Enable or disable all form controls based on whether this node is a
-     * university (validator) node.
-     *
-     * <p>
-     * Should be set to {@code false} for read-only nodes (student portals,
-     * employer verifiers) because they are not permitted to issue credentials.
-     * Should also be set to {@code false} when the node is not yet running,
-     * regardless of type.
-     * When disabled, a notice must be displayed explaining that only accredited
-     * university nodes may issue credentials.
-     * </p>
-     *
-     * @param enabled {@code true} to enable the form (node is running and is
-     *                a university/validator node); {@code false} otherwise
+     * Enable or disable all form controls based on whether this node is a university or validator node.
+     * Should be set to false for read-only nodes because they are not permitted to issue credentials.
+     * Should also be set to false when the node is not yet running, regardless of type.
+     * When disabled, a notice must be displayed explaining that only accredited university nodes
+     * may issue credentials.
+     * 
+     * @param enabled true to enable the form when the node is running and is a university or validator node;
+     *                false otherwise
      */
     public void setFormEnabled(boolean enabled) {
     }

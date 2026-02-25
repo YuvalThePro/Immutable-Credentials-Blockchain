@@ -20,22 +20,15 @@ import com.immutable.credentials.util.Logger;
 
 /**
  * Represents a node in the P2P network.
- *
- * Node types:
- * - Validator Node: major accredited institution (e.g. MIT) that can
- * propose/sign
- * blocks AND issue credentials via Proof-of-Authority consensus.
- * - University Node: accredited institution that can issue credentials but
+ * Validator nodes are major accredited institutions that can propose and sign blocks
+ * and issue credentials via Proof-of-Authority consensus.
+ * University nodes are accredited institutions that can issue credentials but
  * cannot propose or sign blocks.
- * - Read-Only Node: any participant (student, employer, public explorer) that
- * only verifies credentials; cannot issue or seal anything.
- *
- * Responsibilities:
- * - Maintain a local copy of the blockchain
- * - Connect to peer nodes via the P2P network
- * - Synchronize the blockchain with the network
- * - Process and validate incoming blocks
- * - Handle credential issuance (validator nodes only)
+ * Read-only nodes are participants such as students, employers, or public explorers
+ * that only verify credentials and cannot issue or seal anything.
+ * Responsibilities include maintaining a local blockchain copy, connecting to peers,
+ * synchronizing the chain with the network, validating incoming blocks, and handling
+ * credential issuance for authorized nodes.
  */
 public class Node {
 
@@ -46,14 +39,12 @@ public class Node {
 
     /**
      * Classifies the role of this node in the network.
-     * <ul>
-     * <li>{@code VALIDATOR} – major accredited institution; can issue credentials
-     * and seal/approve blocks via Proof-of-Authority consensus.</li>
-     * <li>{@code UNIVERSITY} – accredited institution; can issue credentials but
-     * cannot propose or sign blocks.</li>
-     * <li>{@code READ_ONLY} – any participant (student, employer, public explorer)
-     * that only verifies credentials.</li>
-     * </ul>
+     * VALIDATOR is a major accredited institution that can issue credentials
+     * and seal/approve blocks via Proof-of-Authority consensus.
+     * UNIVERSITY is an accredited institution that can issue credentials but
+     * cannot propose or sign blocks.
+     * READ_ONLY is any participant such as a student, employer, or public explorer
+     * that only verifies credentials.
      */
     public enum NodeType {
         VALIDATOR,
@@ -66,8 +57,8 @@ public class Node {
 
     /**
      * The validator associated with this node.
-     * Non-null for {@link NodeType#VALIDATOR} nodes, null otherwise.
-     * Use {@link #isValidator()} / {@link #isUniversity()} to check node type.
+     * Non-null for VALIDATOR nodes, null otherwise.
+     * Use isValidator() or isUniversity() to check node type.
      */
     private final Validator validator;
 
@@ -86,16 +77,15 @@ public class Node {
     // ===== Pending Credential Pool =====
     /**
      * Thread-safe pool of credentials waiting to be sealed into the next block.
-     * Credentials are added via {@link #submitCredential(Credential)} and drained
-     * by {@link #sealBlock()} when the scheduler fires and it is this node's turn.
+     * Credentials are added via submitCredential and drained by sealBlock
+     * when the scheduler fires and it is this node's turn.
      */
     private final ArrayList<Credential> pendingCredentials;
 
     // ===== Block Scheduler =====
     /**
-     * Scheduled executor that periodically triggers {@link #sealBlock()}.
-     * Only active on validator nodes. Started in {@link #start()}, shut down in
-     * {@link #stop()}.
+     * Scheduled executor that periodically triggers sealBlock.
+     * Only active on validator nodes. Started in start(), shut down in stop().
      */
     private ScheduledExecutorService blockScheduler;
 
@@ -107,6 +97,30 @@ public class Node {
 
     /** Maximum number of credentials that can be packed into a single block. */
     private static final int MAX_CREDENTIALS_PER_BLOCK = 50;
+
+    /**
+     * Validates the subset of constructor arguments that are common to all node types.
+     *
+     * @throws IllegalArgumentException if any argument is null, blank, or out of range
+     */
+    private static void validateCommonNodeArgs(String nodeId, String address, int port,
+            ProofOfAuthority proofOfAuthority, String storageFileName) {
+        if (nodeId == null || nodeId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Node ID cannot be null or empty");
+        }
+        if (address == null || address.trim().isEmpty()) {
+            throw new IllegalArgumentException("Address cannot be null or empty");
+        }
+        if (port < 1024 || port > 65535) {
+            throw new IllegalArgumentException("Port must be between 1024 and 65535");
+        }
+        if (proofOfAuthority == null) {
+            throw new IllegalArgumentException("ProofOfAuthority cannot be null");
+        }
+        if (storageFileName == null || storageFileName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Storage file name cannot be null or empty");
+        }
+    }
 
     /**
      * Create a validator node that can propose and sign blocks.
@@ -123,23 +137,9 @@ public class Node {
             Validator validator, ProofOfAuthority proofOfAuthority,
             String storageFileName) {
 
-        if (nodeId == null || nodeId.trim().isEmpty()) {
-            throw new IllegalArgumentException("Node ID cannot be null or empty");
-        }
-        if (address == null || address.trim().isEmpty()) {
-            throw new IllegalArgumentException("Address cannot be null or empty");
-        }
-        if (port < 1024 || port > 65535) {
-            throw new IllegalArgumentException("Port must be between 1024 and 65535");
-        }
+        validateCommonNodeArgs(nodeId, address, port, proofOfAuthority, storageFileName);
         if (validator == null) {
             throw new IllegalArgumentException("Validator cannot be null for a validator node");
-        }
-        if (proofOfAuthority == null) {
-            throw new IllegalArgumentException("ProofOfAuthority cannot be null");
-        }
-        if (storageFileName == null || storageFileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Storage file name cannot be null or empty");
         }
 
         this.nodeId = nodeId;
@@ -169,21 +169,7 @@ public class Node {
     public Node(String nodeId, String address, int port,
             ProofOfAuthority proofOfAuthority, String storageFileName) {
 
-        if (nodeId == null || nodeId.trim().isEmpty()) {
-            throw new IllegalArgumentException("Node ID cannot be null or empty");
-        }
-        if (address == null || address.trim().isEmpty()) {
-            throw new IllegalArgumentException("Address cannot be null or empty");
-        }
-        if (port < 1024 || port > 65535) {
-            throw new IllegalArgumentException("Port must be between 1024 and 65535");
-        }
-        if (proofOfAuthority == null) {
-            throw new IllegalArgumentException("ProofOfAuthority cannot be null");
-        }
-        if (storageFileName == null || storageFileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Storage file name cannot be null or empty");
-        }
+        validateCommonNodeArgs(nodeId, address, port, proofOfAuthority, storageFileName);
 
         this.nodeId = nodeId;
         this.address = address;
@@ -220,21 +206,7 @@ public class Node {
             ProofOfAuthority proofOfAuthority, String storageFileName,
             boolean isUniversityNode) {
 
-        if (nodeId == null || nodeId.trim().isEmpty()) {
-            throw new IllegalArgumentException("Node ID cannot be null or empty");
-        }
-        if (address == null || address.trim().isEmpty()) {
-            throw new IllegalArgumentException("Address cannot be null or empty");
-        }
-        if (port < 1024 || port > 65535) {
-            throw new IllegalArgumentException("Port must be between 1024 and 65535");
-        }
-        if (proofOfAuthority == null) {
-            throw new IllegalArgumentException("ProofOfAuthority cannot be null");
-        }
-        if (storageFileName == null || storageFileName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Storage file name cannot be null or empty");
-        }
+        validateCommonNodeArgs(nodeId, address, port, proofOfAuthority, storageFileName);
 
         this.nodeId = nodeId;
         this.address = address;
@@ -695,11 +667,9 @@ public class Node {
 
     /**
      * Check whether this node is a validator node.
-     * Derived directly from whether a {@link Validator} was supplied at
-     * construction.
-     *
-     * @return true if this node can propose and sign blocks, false for read-only
-     *         nodes
+     * Derived directly from whether a Validator was supplied at construction.
+     * 
+     * @return true if this node can propose and sign blocks, false for read-only nodes
      */
     public boolean isValidator() {
         return nodeType == NodeType.VALIDATOR;
@@ -707,10 +677,9 @@ public class Node {
 
     /**
      * Check whether this node belongs to an accredited institution and may
-     * therefore submit credentials. Returns {@code true} for both
-     * {@link NodeType#UNIVERSITY} and {@link NodeType#VALIDATOR} nodes;
-     * {@code false} for {@link NodeType#READ_ONLY} nodes.
-     *
+     * therefore submit credentials. Returns true for both UNIVERSITY and VALIDATOR
+     * nodes, and false for READ_ONLY nodes.
+     * 
      * @return true if this node may issue credentials
      */
     public boolean isUniversity() {

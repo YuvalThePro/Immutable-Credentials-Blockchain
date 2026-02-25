@@ -10,11 +10,10 @@ public class NodeService {
     private final Node node;
 
     /**
-     * Construct a new {@code NodeService} bound to the given node.
-     *
-     * @param node the {@link Node} instance to manage and expose to the UI;
-     *             must not be {@code null}
-     * @throws IllegalArgumentException if {@code node} is {@code null}
+     * Construct a new NodeService bound to the given node.
+     * 
+     * @param node the Node instance to manage and expose to the UI; must not be null
+     * @throws IllegalArgumentException if node is null
      */
     public NodeService(Node node) {
         this.node = node;
@@ -54,8 +53,8 @@ public class NodeService {
 
     /**
      * Return the unique identifier of this node.
-     *
-     * @return the node ID string; never {@code null}
+     * 
+     * @return the node ID string; never null
      */
     public String getNodeId() {
         return node.getId();
@@ -63,8 +62,8 @@ public class NodeService {
 
     /**
      * Return the IP address or hostname this node listens on.
-     *
-     * @return the node address; never {@code null}
+     * 
+     * @return the node address; never null
      */
     public String getNodeAddress() {
         return node.getAddress();
@@ -80,12 +79,11 @@ public class NodeService {
     }
 
     /**
-     * Report whether this node is a consensus <em>validator</em> — one of the
-     * major, globally-accredited institutions (e.g. MIT, Oxford) that may
-     * propose and sign blocks in addition to issuing credentials.
+     * Report whether this node is a consensus validator, meaning one of the
+     * major globally-accredited institutions that may propose and sign blocks
+     * in addition to issuing credentials.
      * 
-     * @return {@code true} if this node is a
-     *         {@link com.immutable.credentials.core.Node.NodeType#VALIDATOR}
+     * @return true if this node is a NodeType.VALIDATOR
      */
     public boolean isValidator() {
         return node.isValidator();
@@ -102,22 +100,21 @@ public class NodeService {
     }
 
     /**
-     * Return the validator ID of this node, or {@code null} if the node is
-     * not a validator.
-     *
-     * @return the validator ID string, or {@code null}
+     * Return the validator ID of this node, or null if the node is not a validator.
+     * 
+     * @return the validator ID string, or null
      */
     public String getValidatorId() {
-        return null;
+        return node.getValidator() != null ? node.getValidator().getValidatorId() : null;
     }
 
     /**
-     * Report whether the node is currently running (i.e. has been started
-     * and not yet stopped).
-     *
-     * @return {@code true} if the node is running; {@code false} otherwise
+     * Report whether the node is currently running, meaning it has been started
+     * and not yet stopped.
+     * 
+     * @return true if the node is running; false otherwise
      */
     public boolean isRunning() {
-        return false;
+        return node.isRunning();
     }
 }

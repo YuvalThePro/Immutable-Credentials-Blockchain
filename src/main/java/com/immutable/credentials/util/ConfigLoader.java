@@ -8,13 +8,10 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
@@ -24,15 +21,10 @@ import com.immutable.credentials.crypto.CryptoUtils;
 
 /**
  * Secure configuration loader for blockchain node settings.
- * Loads configuration from property files with input validation and security
- * checks.
- * 
- * Security measures:
- * - Path traversal prevention
- * - Input validation for all configuration values
- * - Safe defaults for missing values
- * - No arbitrary code execution
- * - Restricted file access to config directory only
+ * Loads configuration from property files with input validation and security checks.
+ * Security measures include path traversal prevention, input validation for all
+ * configuration values, safe defaults for missing values, no arbitrary code execution,
+ * and restricted file access to the config directory only.
  */
 public class ConfigLoader {
 
@@ -128,10 +120,9 @@ public class ConfigLoader {
     private static final String KEYS_DIR = "keys";
 
     /**
-     * Load all validators from {@code validators.properties} as public-key-only
-     * {@link Validator} objects. These can verify signatures but cannot sign blocks.
-     * Suitable for constructing the shared {@code ProofOfAuthority} instance on any node.
-     *
+     * Load all validators from validators.properties as public-key-only Validator objects.
+     * These validators can verify signatures but cannot sign blocks.
+     * 
      * @return list of public-key-only Validator objects
      * @throws IOException if the configuration file cannot be read
      */
@@ -175,76 +166,98 @@ public class ConfigLoader {
     }
 
     /**
-     * Upgrade one of the public-key-only validators into a full (signing-capable)
-     * validator by loading its private key from the local {@code keys/} directory.
-     *
-     * <p>Expected file: {@code keys/<validatorId>.key} containing a Base64-encoded
-     * PKCS#8 private key.</p>
-     *
-     * <p>If no key file exists yet, a new key pair is generated automatically,
-     * the private key is saved to disk, and the Base64 public key is logged so
-     * the operator can paste it into {@code validators.properties}.</p>
-     *
-     * @param validatorId the ID of the local validator (must match an entry in the list)
-     * @param validators  the full list of public-key-only validators loaded from config
-     * @return a full Validator with both public and private keys, or null if the ID
-     *         is not found in the validator list
-     * @throws IOException if the key file cannot be read or a new key cannot be saved
+     * Load or generate the full (signing-capable) Validator for the local node.
+     * If a key file exists, loads the private key and matching public key from config.
+     * If no key exists, generates a new RSA key pair, saves the private key to disk,
+     * and updates the public key in validators.properties.
+     * The returned Validator is also upserted into the shared validators list.
+     * 
+     * @param validatorId the ID of the local validator
+     * @param validators  the shared list of public-key-only validators (will be updated)
+     * @return a full Validator with both public and private keys, or {@code null} if
+     *         the ID is not found in validators.properties
+     * @throws IOException if a key file cannot be read or written
      */
     public static Validator loadLocalValidator(String validatorId,
             List<Validator> validators) throws IOException {
 
-        // Find the matching validator entry
-        Validator match = null;
-        for (Validator v : validators) {
-            if (v.getValidatorId().equals(validatorId)) {
-                match = v;
+        // Read name/institution directly from properties — works even with placeholder keys
+        Properties props = loadPropertiesFile("validators.properties");
+        String name = null;
+        String institution = "Unknown Institution";
+        for (int i = 1; i <= 1000; i++) {
+            String id = props.getProperty("validator." + i + ".id");
+            if (id == null) break;
+            if (id.trim().equals(validatorId)) {
+                name = props.getProperty("validator." + i + ".name", validatorId);
+                institution = props.getProperty("validator." + i + ".institution", institution);
                 break;
             }
         }
 
-        if (match == null) {
-            Logger.log("Warning: Validator ID " + validatorId
-                    + " not found in validators.properties");
+        if (name == null) {
+            Logger.log("Warning: Validator ID " + validatorId + " not found in validators.properties");
             return null;
         }
 
         String keyFile = KEYS_DIR + "/" + validatorId + ".key";
         Path keyPath = Paths.get(keyFile);
 
+        PublicKey publicKey = null;
+        PrivateKey privateKey = null;
+
+        boolean needNewKeyPair = false;
+
         if (Files.exists(keyPath)) {
-            // Load existing private key
+            // Load existing private key from disk
             String keyBase64 = new String(Files.readAllBytes(keyPath), "UTF-8").trim();
-            PrivateKey privateKey = CryptoUtils.privateKeyFromBase64(keyBase64);
-            Validator full = new Validator(
-                    match.getValidatorId(),
-                    match.getValidatorName(),
-                    match.getPublicKey(),
-                    privateKey,
-                    match.getInstitution());
-            Logger.log("Loaded private key for validator " + validatorId + " from " + keyFile);
-            return full;
+            privateKey = CryptoUtils.privateKeyFromBase64(keyBase64);
+
+            // Read the matching public key from validators.properties
+            String pubKeyStr = null;
+            for (int i = 1; i <= 1000; i++) {
+                String id = props.getProperty("validator." + i + ".id");
+                if (id == null) break;
+                if (id.trim().equals(validatorId)) {
+                    pubKeyStr = props.getProperty("validator." + i + ".publickey");
+                    break;
+                }
+            }
+            if (pubKeyStr == null || pubKeyStr.contains("PLACEHOLDER")) {
+                Logger.log("Private key exists but public key is missing/placeholder for "
+                        + validatorId + ". Regenerating key pair...");
+                needNewKeyPair = true;
+            } else {
+                publicKey = CryptoUtils.publicKeyFromBase64(pubKeyStr);
+                Logger.log("Loaded key pair for validator " + validatorId);
+            }
+        } else {
+            needNewKeyPair = true;
         }
 
-        // No key file yet — generate and save a new key pair
-        Logger.log("No private key found for " + validatorId + ", generating new key pair...");
-        KeyPair keyPair = CryptoUtils.generateAndSaveKeyPair(keyFile);
+        if (needNewKeyPair) {
+            // Generate a fresh key pair (first run or mismatched keys)
+            Logger.log("Generating new key pair for " + validatorId + "...");
+            KeyPair keyPair = CryptoUtils.generateAndSaveKeyPair(keyFile);
+            publicKey = keyPair.getPublic();
+            privateKey = keyPair.getPrivate();
+            updateValidatorPublicKey(validatorId, CryptoUtils.keyToString(publicKey));
+            Logger.log("Key pair for " + validatorId + " saved (private key + public key in validators.properties)");
+        }
 
-        // Write the public key into validators.properties automatically
-        String pubKeyBase64 = CryptoUtils.keyToString(keyPair.getPublic());
-        updateValidatorPublicKey(validatorId, pubKeyBase64);
-        Logger.log("Public key for " + validatorId + " saved to validators.properties");
+        Validator full = new Validator(validatorId, name, publicKey, privateKey, institution);
 
-        // Replace the public-key-only entry in the list with the generated key
-        int idx = validators.indexOf(match);
-        Validator full = new Validator(
-                match.getValidatorId(),
-                match.getValidatorName(),
-                keyPair.getPublic(),
-                keyPair.getPrivate(),
-                match.getInstitution());
-        if (idx >= 0) {
-            validators.set(idx, full);
+        // Upsert into the shared list so PoA gets the correct public key
+        boolean found = false;
+        for (int i = 0; i < validators.size(); i++) {
+            if (validators.get(i).getValidatorId().equals(validatorId)) {
+                validators.set(i, full);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            validators.add(full);
         }
 
         return full;
@@ -307,7 +320,7 @@ public class ConfigLoader {
         Path configPath = Paths.get(CONFIG_DIR, fileName);
 
         // Ensure the resolved path is still within config directory
-        Path normalizedPath = configPath.normalize();
+        Path normalizedPath = configPath.toAbsolutePath().normalize();
         if (!normalizedPath.startsWith(Paths.get(CONFIG_DIR).toAbsolutePath().normalize())) {
             throw new SecurityException("Invalid file path: must be within config directory");
         }
@@ -326,23 +339,14 @@ public class ConfigLoader {
 
     /**
      * Parse a Base64-encoded public key string into a PublicKey object.
+     * Delegates to CryptoUtils.publicKeyFromBase64.
      * 
      * @param publicKeyStr the Base64-encoded public key string
      * @return the parsed PublicKey
      * @throws Exception if parsing fails
      */
     private static PublicKey parsePublicKey(String publicKeyStr) throws Exception {
-        if (publicKeyStr == null || publicKeyStr.trim().isEmpty()) {
-            throw new IllegalArgumentException("Public key string cannot be null or empty");
-        }
-
-        // Remove whitespace and newlines
-        publicKeyStr = publicKeyStr.replaceAll("\\s+", "");
-
-        byte[] keyBytes = Base64.getDecoder().decode(publicKeyStr);
-        X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        return keyFactory.generatePublic(spec);
+        return CryptoUtils.publicKeyFromBase64(publicKeyStr);
     }
 
     /**

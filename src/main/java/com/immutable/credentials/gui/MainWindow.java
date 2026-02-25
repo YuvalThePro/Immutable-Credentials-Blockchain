@@ -1,12 +1,19 @@
 package com.immutable.credentials.gui;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
 
+import com.immutable.credentials.consensus.ProofOfAuthority;
+import com.immutable.credentials.consensus.Validator;
+import com.immutable.credentials.core.Node;
+import com.immutable.credentials.network.P2PNetwork;
 import com.immutable.credentials.service.BlockchainService;
 import com.immutable.credentials.service.CredentialService;
 import com.immutable.credentials.service.NetworkService;
 import com.immutable.credentials.service.NodeService;
+import com.immutable.credentials.util.ConfigLoader;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -117,9 +124,80 @@ public class MainWindow extends Application {
      * Initialise all four service instances that act as the middleware layer
      * between the UI and the backend {@code Node}.
      * Must be called before {@link #buildTabPane()} or any panel is constructed.
+     *
+     * <p>
+     * Reads {@code node.properties} to determine the node type, then loads
+     * validators from {@code validators.properties}. On first run as a validator,
+     * the key pair is auto-generated and the public key written back to config.
+     * </p>
+     *
+     * @throws RuntimeException if configuration cannot be loaded or the node
+     *                          cannot be constructed
      */
     private void initServices() throws RuntimeException {
+        try {
+            Properties nodeConfig = ConfigLoader.loadNodeConfig();
+            String nodeType = ConfigLoader.getNodeType(nodeConfig);
+            int port = ConfigLoader.getPort(nodeConfig);
+            String dataDir = ConfigLoader.getDataDir(nodeConfig);
+            String storageFile = dataDir + "/blockchain.jsonl";
+            String address = "localhost";
 
+            // Every node loads the same shared validator list (public keys only).
+            // loadLocalValidator will upsert the local validator with its private key.
+            List<Validator> validators = ConfigLoader.loadValidatorList();
+
+            Node node;
+            if ("validator".equals(nodeType)) {
+                String validatorId = ConfigLoader.getValidatorId(nodeConfig);
+                if (validatorId == null) {
+                    throw new RuntimeException("node.validator.id is not set in node.properties");
+                }
+                // Loads or generates the key pair; updates validators list in-place
+                Validator localValidator = ConfigLoader.loadLocalValidator(validatorId, validators);
+                if (localValidator == null) {
+                    throw new RuntimeException("Validator '" + validatorId
+                            + "' not found in validators.properties");
+                }
+                localValidator.activate();
+                ProofOfAuthority poa = new ProofOfAuthority(validators);
+                node = new Node(validatorId, address, port, localValidator, poa, storageFile);
+
+            } else {
+                if (validators.isEmpty()) {
+                    throw new RuntimeException(
+                            "No valid validators found in validators.properties. "
+                                    + "At least one validator node must register its public key first.");
+                }
+                ProofOfAuthority poa = new ProofOfAuthority(validators);
+                if ("university".equals(nodeType)) {
+                    String institution = ConfigLoader.getInstitution(nodeConfig);
+                    node = new Node(institution, address, port, poa, storageFile, true);
+                } else {
+                    node = new Node("readonly-" + port, address, port, poa, storageFile);
+                }
+            }
+
+            // Initialize P2P network from network.properties
+            Properties networkConfig = ConfigLoader.loadNetworkConfig();
+            int networkPort = ConfigLoader.getNetworkPort(networkConfig);
+            int maxConnections = ConfigLoader.getMaxConnections(networkConfig);
+            long connectTimeout = ConfigLoader.getConnectionTimeout(networkConfig);
+            long syncInterval = ConfigLoader.getSyncInterval(networkConfig);
+            long discoveryInterval = Long.parseLong(
+                    networkConfig.getProperty("network.discovery.interval", "30000"));
+            P2PNetwork network = new P2PNetwork(node, networkPort, maxConnections,
+                    (int) connectTimeout, discoveryInterval, syncInterval);
+            node.setNetwork(network);
+
+            nodeService = new NodeService(node);
+            credentialService = new CredentialService(node);
+            blockchainService = new BlockchainService(node);
+            networkService = new NetworkService(node);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to initialise node: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -216,7 +294,7 @@ public class MainWindow extends Application {
      * @return an {@link HBox} configured as the status bar
      */
     private HBox buildStatusBar() {
-        statusNodeLabel = new Label("Node: –");
+        statusNodeLabel = new Label("Node: -");
         statusBlockLabel = new Label("Blocks: 0");
         statusPeerLabel = new Label("Peers: 0");
 
@@ -234,7 +312,7 @@ public class MainWindow extends Application {
     private void refreshStatusBar() {
         if (nodeService == null)
             return;
-        String nodeId = nodeService.isRunning() ? nodeService.getNodeId() : "–";
+        String nodeId = nodeService.isRunning() ? nodeService.getNodeId() : "-";
         String nodeType = nodeService.isValidator() ? "Validator"
                 : (nodeService.isUniversity() ? "University" : "Read-Only");
         statusNodeLabel.setText("Node: " + nodeId + " (" + nodeType + ")");

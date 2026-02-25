@@ -35,12 +35,11 @@ public class BlockchainStorage {
             throw new IllegalArgumentException("File name cannot be null or empty");
         }
 
-        Path dataDir = Paths.get("data");
-        if (!Files.exists(dataDir)) {
-            Files.createDirectories(dataDir);
+        Path filePath = Paths.get(fileName);
+        Path parentDir = filePath.getParent();
+        if (parentDir != null && !Files.exists(parentDir)) {
+            Files.createDirectories(parentDir);
         }
-
-        Path filePath = Paths.get("data", fileName);
         
         ArrayList<Block> chain = blockchain.getChain();
         StringBuilder jsonLines = new StringBuilder();
@@ -64,7 +63,7 @@ public class BlockchainStorage {
             throw new IllegalArgumentException("File name cannot be null or empty");
         }
         
-        Path path = Paths.get("data", fileName);
+        Path path = Paths.get(fileName);
         
         if (!Files.exists(path)) {
             throw new IOException("File does not exist: " + path);
@@ -105,12 +104,11 @@ public class BlockchainStorage {
             throw new IllegalArgumentException("File name cannot be null or empty");
         }
 
-        Path dataDir = Paths.get("data");
-        if (!Files.exists(dataDir)) {
-            Files.createDirectories(dataDir);
+        Path filePath = Paths.get(fileName);
+        Path parentDir = filePath.getParent();
+        if (parentDir != null && !Files.exists(parentDir)) {
+            Files.createDirectories(parentDir);
         }
-
-        Path filePath = Paths.get("data", fileName);
         
         String blockJson = JsonSerializer.blockToJson(block) + "\n";
         
@@ -137,8 +135,8 @@ public class BlockchainStorage {
             throw new IllegalArgumentException("Backup file name cannot be null or empty");
         }
         
-        Path sourcePath = Paths.get("data", sourceFileName);
-        Path backupPath = Paths.get("data", backupFileName);
+        Path sourcePath = Paths.get(sourceFileName);
+        Path backupPath = Paths.get(backupFileName);
         
         if (!Files.exists(sourcePath)) {
             throw new IOException("Source file does not exist: " + sourcePath);
@@ -159,7 +157,7 @@ public class BlockchainStorage {
             throw new IllegalArgumentException("File name cannot be null or empty");
         }
         
-        Path filePath = Paths.get("data", fileName);
+        Path filePath = Paths.get(fileName);
         
         if (!Files.exists(filePath)) {
             throw new IOException("File does not exist: " + filePath);
@@ -179,7 +177,7 @@ public class BlockchainStorage {
             return false;
         }
         
-        Path filePath = Paths.get("data", fileName);
+        Path filePath = Paths.get(fileName);
         return Files.exists(filePath);
     }
 }

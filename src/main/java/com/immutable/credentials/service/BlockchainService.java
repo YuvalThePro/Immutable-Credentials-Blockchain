@@ -12,11 +12,10 @@ public class BlockchainService {
     private final Node node;
 
     /**
-     * Construct a new {@code BlockchainService} bound to the given node.
-     *
-     * @param node the {@link Node} instance owning the blockchain;
-     *             must not be {@code null}
-     * @throws IllegalArgumentException if {@code node} is {@code null}
+     * Construct a new BlockchainService bound to the given node.
+     * 
+     * @param node the Node instance owning the blockchain; must not be null
+     * @throws IllegalArgumentException if node is null
      */
     public BlockchainService(Node node) throws IllegalArgumentException {
         if (node == null) {
@@ -27,9 +26,9 @@ public class BlockchainService {
 
     /**
      * Retrieve a snapshot of all blocks currently on the local chain.
-     *
-     * @return a non-null, possibly empty, ordered list of {@link Block} objects
-     *         starting from the genesis block (index 0)
+     * 
+     * @return a non-null, possibly empty, ordered list of Block objects
+     *         starting from the genesis block at index 0
      */
     public List<Block> getAllBlocks() {
         return node.getChain();
@@ -37,11 +36,10 @@ public class BlockchainService {
 
     /**
      * Retrieve a specific block by its index in the chain.
-     *
+     * 
      * @param index the zero-based block index
-     * @return the {@link Block} at the given index, or {@code null} if the
-     *         index is out of range or the chain is empty
-     * @throws IllegalArgumentException if {@code index} is negative
+     * @return the Block at the given index, or null if the index is out of range or the chain is empty
+     * @throws IllegalArgumentException if index is negative
      */
     public Block getBlockByIndex(int index) throws IllegalArgumentException {
         if (index < 0) {
@@ -52,8 +50,8 @@ public class BlockchainService {
 
     /**
      * Retrieve the most recently finalised block on the local chain.
-     *
-     * @return the latest {@link Block}, or {@code null} if the chain is empty
+     * 
+     * @return the latest Block, or null if the chain is empty
      */
     public Block getLatestBlock() {
         return node.getLatestBlock();
@@ -69,13 +67,10 @@ public class BlockchainService {
     }
 
     /**
-     * Validate the integrity of the entire local chain against the known
-     * validator public keys.
-     *
-     *
-     * @return {@code true} if the chain passes all integrity checks;
-     *         {@code false} if any block has an invalid hash, broken link,
-     *         invalid timestamp, or invalid signature
+     * Validate the integrity of the entire local chain against the known validator public keys.
+     * 
+     * @return true if the chain passes all integrity checks;
+     *         false if any block has an invalid hash, broken link, invalid timestamp, or invalid signature
      */
     public boolean isChainValid() {
         return node.validateIncomingChain(new Blockchain(node.getChain()));
@@ -96,10 +91,9 @@ public class BlockchainService {
 
     /**
      * Return the total number of credentials stored across all blocks on
-     * the local chain (excluding the genesis credential).
-     *
-     * @return the total credential count; {@code 0} if only the genesis block
-     *         exists
+     * the local chain, excluding the genesis credential.
+     * 
+     * @return the total credential count; 0 if only the genesis block exists
      */
     public int getTotalCredentialCount() {
         return node.getCredentialIndex().getCredentialCount();

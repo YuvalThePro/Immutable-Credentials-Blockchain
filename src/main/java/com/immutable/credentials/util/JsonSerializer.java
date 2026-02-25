@@ -59,15 +59,7 @@ public class JsonSerializer {
             if (credentials != null) {
                 JSONArray credArray = new JSONArray();
                 for (Credential cred : credentials) {
-                    JSONObject credJson = new JSONObject();
-                    credJson.put("studentName", sanitizeString(cred.getStudentName()));
-                    credJson.put("dateAwarded",
-                            cred.getDateAwarded() != null ? cred.getDateAwarded().getTime() : JSONObject.NULL);
-                    credJson.put("degree", sanitizeString(cred.getDegree()));
-                    credJson.put("institution", sanitizeString(cred.getInstitution()));
-                    credJson.put("studentId", sanitizeString(cred.getStudentId()));
-                    credJson.put("credentialId", sanitizeString(cred.getCredentialId()));
-                    credArray.put(credJson);
+                    credArray.put(new JSONObject(credentialToJson(cred)));
                 }
                 json.put("credentials", credArray);
             } else {

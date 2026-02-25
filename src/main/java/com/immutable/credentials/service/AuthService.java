@@ -151,7 +151,7 @@ public class AuthService {
     public List<Validator> loadValidators() throws SQLException {
         List<Validator> result = new ArrayList<>();
         String sql = "SELECT validator_id, institution, public_key "
-                + "FROM validators WHERE is_active = TRUE ORDER BY validator_id";
+                + "FROM validators ORDER BY validator_id";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {

@@ -12,7 +12,8 @@ public class NodeService {
     /**
      * Construct a new NodeService bound to the given node.
      * 
-     * @param node the Node instance to manage and expose to the UI; must not be null
+     * @param node the Node instance to manage and expose to the UI; must not be
+     *             null
      * @throws IllegalArgumentException if node is null
      */
     public NodeService(Node node) {

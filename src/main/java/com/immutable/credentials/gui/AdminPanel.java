@@ -147,19 +147,23 @@ public class AdminPanel extends VBox {
         userResultLabel = new Label();
         userResultLabel.setWrapText(true);
         userResultLabel.setVisible(false);
+        userResultLabel.setManaged(false);
 
         userPasswordDisplay = new TextField();
         userPasswordDisplay.setEditable(false);
         userPasswordDisplay.setPromptText("Generated password appears here");
         userPasswordDisplay.setPrefWidth(220);
         userPasswordDisplay.setVisible(false);
+        userPasswordDisplay.setManaged(false);
         userPasswordDisplay.setTooltip(new Tooltip("Copy this password and hand it to the user — it will not be shown again."));
 
         Label pwLabel = new Label("Generated password (shown once):");
         pwLabel.setVisible(false);
+        pwLabel.setManaged(false);
 
         Button copyBtn = new Button("Copy");
         copyBtn.setVisible(false);
+        copyBtn.setManaged(false);
         copyBtn.setOnAction(e -> {
             javafx.scene.input.Clipboard cb = javafx.scene.input.Clipboard.getSystemClipboard();
             javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
@@ -167,14 +171,19 @@ public class AdminPanel extends VBox {
             cb.setContent(cc);
         });
 
-        // Wire visibility together
+        // Wire visibility and managed together
         userPasswordDisplay.visibleProperty().addListener((obs, o, n) -> {
             pwLabel.setVisible(n);
+            pwLabel.setManaged(n);
             copyBtn.setVisible(n);
+            copyBtn.setManaged(n);
         });
+        userPasswordDisplay.managedProperty().bind(userPasswordDisplay.visibleProperty());
 
         HBox pwRow = new HBox(8, userPasswordDisplay, copyBtn);
         pwRow.setAlignment(Pos.CENTER_LEFT);
+        pwRow.visibleProperty().bind(userPasswordDisplay.visibleProperty());
+        pwRow.managedProperty().bind(userPasswordDisplay.visibleProperty());
 
         return new VBox(6, title, subtitle, form,
                 new HBox(registerBtn), userResultLabel, pwLabel, pwRow);
@@ -236,19 +245,23 @@ public class AdminPanel extends VBox {
         instResultLabel = new Label();
         instResultLabel.setWrapText(true);
         instResultLabel.setVisible(false);
+        instResultLabel.setManaged(false);
 
         instPasswordDisplay = new TextField();
         instPasswordDisplay.setEditable(false);
         instPasswordDisplay.setPromptText("Generated password appears here");
         instPasswordDisplay.setPrefWidth(220);
         instPasswordDisplay.setVisible(false);
+        instPasswordDisplay.setManaged(false);
         instPasswordDisplay.setTooltip(new Tooltip("Copy this password and give it to the institution admin — it will not be shown again."));
 
         Label pwLabel = new Label("Generated password (shown once):");
         pwLabel.setVisible(false);
+        pwLabel.setManaged(false);
 
         Button copyBtn = new Button("Copy");
         copyBtn.setVisible(false);
+        copyBtn.setManaged(false);
         copyBtn.setOnAction(e -> {
             javafx.scene.input.Clipboard cb = javafx.scene.input.Clipboard.getSystemClipboard();
             javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
@@ -258,11 +271,16 @@ public class AdminPanel extends VBox {
 
         instPasswordDisplay.visibleProperty().addListener((obs, o, n) -> {
             pwLabel.setVisible(n);
+            pwLabel.setManaged(n);
             copyBtn.setVisible(n);
+            copyBtn.setManaged(n);
         });
+        instPasswordDisplay.managedProperty().bind(instPasswordDisplay.visibleProperty());
 
         HBox pwRow = new HBox(8, instPasswordDisplay, copyBtn);
         pwRow.setAlignment(Pos.CENTER_LEFT);
+        pwRow.visibleProperty().bind(instPasswordDisplay.visibleProperty());
+        pwRow.managedProperty().bind(instPasswordDisplay.visibleProperty());
 
         return new VBox(6, title, subtitle, form,
                 new HBox(registerBtn), instResultLabel, pwLabel, pwRow);
@@ -395,6 +413,7 @@ public class AdminPanel extends VBox {
         userResultLabel.setText(message);
         userResultLabel.setTextFill(isError ? Color.RED : Color.GREEN);
         userResultLabel.setVisible(true);
+        userResultLabel.setManaged(true);
     }
 
     /** Show a result message for the institution-registration section. */
@@ -402,6 +421,7 @@ public class AdminPanel extends VBox {
         instResultLabel.setText(message);
         instResultLabel.setTextFill(isError ? Color.RED : Color.GREEN);
         instResultLabel.setVisible(true);
+        instResultLabel.setManaged(true);
     }
 
     /** Clear all fields in the user-registration form. */
@@ -410,6 +430,7 @@ public class AdminPanel extends VBox {
         userNameField.clear();
         userRoleBox.setValue("Staff (can issue credentials)");
         userResultLabel.setVisible(false);
+        userResultLabel.setManaged(false);
     }
 
     /** Clear all fields in the institution-registration form. */
@@ -418,5 +439,6 @@ public class AdminPanel extends VBox {
         instAdminIdField.clear();
         instAdminNameField.clear();
         instResultLabel.setVisible(false);
+        instResultLabel.setManaged(false);
     }
 }

@@ -24,7 +24,8 @@ public class CredentialService {
     }
 
     /**
-     * Submit a new academic credential to the network for inclusion in a future block.
+     * Submit a new academic credential to the network for inclusion in a future
+     * block.
      * 
      * @param studentName  the full name of the student; must not be blank
      * @param studentId    the unique student identifier; must not be blank
@@ -33,7 +34,8 @@ public class CredentialService {
      * @param dateAwarded  the date the credential was awarded; must not be null
      * @param credentialId a caller-supplied unique credential ID; must not be blank
      * @throws IllegalArgumentException if any parameter is null, blank, or invalid
-     * @throws IllegalStateException    if the node is not running or is not a university or validator node
+     * @throws IllegalStateException    if the node is not running or is not a
+     *                                  university or validator node
      */
     public void issueCredential(String studentName, String studentId,
             String degree, String institution,
@@ -95,7 +97,8 @@ public class CredentialService {
      * meaning a university node or validator node, and is therefore
      * authorised to submit credentials.
      * 
-     * @return true if this node may submit credentials; false for pure read-only nodes
+     * @return true if this node may submit credentials; false for pure read-only
+     *         nodes
      */
     public boolean isUniversityNode() {
         return node.isUniversity();

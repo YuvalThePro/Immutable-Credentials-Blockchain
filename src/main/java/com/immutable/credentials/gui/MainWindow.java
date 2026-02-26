@@ -212,7 +212,7 @@ public class MainWindow extends Application {
 
             // Load all network settings from the database.
             AuthService.NetworkSettings net = ConfigLoader.loadNetworkSettings(authService);
-            P2PNetwork network = new P2PNetwork(node, net.port, net.maxConnections,
+            P2PNetwork network = new P2PNetwork(node, node.getPort(), net.maxConnections,
                     (int) net.connectTimeout, net.discoveryInterval, net.syncInterval);
             node.setNetwork(network);
 
@@ -438,8 +438,7 @@ public class MainWindow extends Application {
         alert.setHeaderText("Immutable Credentials Blockchain");
         alert.setContentText(
                 "Version: 1.0.0\n" +
-                        "A Proof-of-Authority blockchain for issuing and verifying academic credentials.\n\n" +
-                        "License: MIT");
+                        "A Proof-of-Authority blockchain for issuing and verifying academic credentials.\n\n");
         alert.showAndWait();
     }
 

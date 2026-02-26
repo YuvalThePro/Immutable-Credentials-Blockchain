@@ -71,6 +71,7 @@ public class IssueCredentialPanel extends VBox {
     public IssueCredentialPanel(CredentialService credentialService, NodeService nodeService) {
         this.credentialService = credentialService;
         this.nodeService = nodeService;
+        getChildren().add(buildForm());
     }
 
     /**

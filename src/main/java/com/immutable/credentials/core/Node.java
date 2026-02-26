@@ -20,14 +20,18 @@ import com.immutable.credentials.util.Logger;
 
 /**
  * Represents a node in the P2P network.
- * Validator nodes are major accredited institutions that can propose and sign blocks
+ * Validator nodes are major accredited institutions that can propose and sign
+ * blocks
  * and issue credentials via Proof-of-Authority consensus.
  * University nodes are accredited institutions that can issue credentials but
  * cannot propose or sign blocks.
- * Read-only nodes are participants such as students, employers, or public explorers
+ * Read-only nodes are participants such as students, employers, or public
+ * explorers
  * that only verify credentials and cannot issue or seal anything.
- * Responsibilities include maintaining a local blockchain copy, connecting to peers,
- * synchronizing the chain with the network, validating incoming blocks, and handling
+ * Responsibilities include maintaining a local blockchain copy, connecting to
+ * peers,
+ * synchronizing the chain with the network, validating incoming blocks, and
+ * handling
  * credential issuance for authorized nodes.
  */
 public class Node {
@@ -99,9 +103,11 @@ public class Node {
     private static final int MAX_CREDENTIALS_PER_BLOCK = 50;
 
     /**
-     * Validates the subset of constructor arguments that are common to all node types.
+     * Validates the subset of constructor arguments that are common to all node
+     * types.
      *
-     * @throws IllegalArgumentException if any argument is null, blank, or out of range
+     * @throws IllegalArgumentException if any argument is null, blank, or out of
+     *                                  range
      */
     private static void validateCommonNodeArgs(String nodeId, String address, int port,
             ProofOfAuthority proofOfAuthority, String storageFileName) {
@@ -623,6 +629,11 @@ public class Node {
             // - Founding node: already has genesis from initializeAsFoundingNode()
             // - Joining node: empty chain, will sync from peers
             Logger.warn("Could not load blockchain from disk, keeping current state: " + e.getMessage());
+
+            if (blockchain.size() == 0) {
+                initializeAsFoundingNode();
+                Logger.log("No stored chain found — genesis block created automatically.");
+            }
         }
     }
 
@@ -669,7 +680,8 @@ public class Node {
      * Check whether this node is a validator node.
      * Derived directly from whether a Validator was supplied at construction.
      * 
-     * @return true if this node can propose and sign blocks, false for read-only nodes
+     * @return true if this node can propose and sign blocks, false for read-only
+     *         nodes
      */
     public boolean isValidator() {
         return nodeType == NodeType.VALIDATOR;

@@ -16,40 +16,41 @@ public class Block {
 
     private final BlockHeader header;
     private final ArrayList<Credential> credentials;
-    
+
     /**
      * Create a new block with calculated hash and signature.
      * 
-     * @param index the block index in the chain
+     * @param index        the block index in the chain
      * @param previousHash the hash of the previous block
-     * @param credential the credential payload
-     * @param validatorId the ID of the validator creating the block
-     * @param signature the cryptographic signature
+     * @param credential   the credential payload
+     * @param validatorId  the ID of the validator creating the block
+     * @param signature    the cryptographic signature
      * @throws IllegalArgumentException if credential or validatorId is invalid
      */
-    public Block(int index, String previousHash, ArrayList<Credential> credentials, String validatorId, String signature) {
+    public Block(int index, String previousHash, ArrayList<Credential> credentials, String validatorId,
+            String signature) {
         if (credentials == null) {
             throw new IllegalArgumentException("Credentials are required");
         }
         if (validatorId == null || validatorId.trim().isEmpty()) {
             throw new IllegalArgumentException("Validator ID is required");
         }
-        
+
         long timestamp = new Date().getTime();
         String hash = calculateHash(index, timestamp, previousHash, credentials, validatorId);
-        
+
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId, signature);
         this.credentials = new ArrayList<>(credentials);
     }
-    
+
     /**
      * Create a new block with calculated hash without signature.
      * Signature can be added later.
      * 
-     * @param index the block index in the chain
+     * @param index        the block index in the chain
      * @param previousHash the hash of the previous block
-     * @param credential the credential payload
-     * @param validatorId the ID of the validator creating the block
+     * @param credential   the credential payload
+     * @param validatorId  the ID of the validator creating the block
      * @throws IllegalArgumentException if credential or validatorId is invalid
      */
     public Block(int index, String previousHash, ArrayList<Credential> credentials, String validatorId) {
@@ -59,14 +60,41 @@ public class Block {
         if (validatorId == null || validatorId.trim().isEmpty()) {
             throw new IllegalArgumentException("Validator ID is required");
         }
-        
+
         long timestamp = new Date().getTime();
         String hash = calculateHash(index, timestamp, previousHash, credentials, validatorId);
-        
+
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId);
         this.credentials = new ArrayList<>(credentials);
     }
-    
+
+    /**
+     * Create a new block with a caller-supplied fixed timestamp and calculated
+     * hash.
+     * Use this for deterministic blocks (e.g. genesis) where every node must
+     * produce the exact same hash regardless of wall-clock time.
+     *
+     * @param index          the block index in the chain
+     * @param fixedTimestamp the exact timestamp to embed (milliseconds since epoch)
+     * @param previousHash   the hash of the previous block
+     * @param credentials    the credential payload
+     * @param validatorId    the ID of the validator creating the block
+     * @param signature      the cryptographic signature
+     * @throws IllegalArgumentException if any required parameter is invalid
+     */
+    public Block(int index, long fixedTimestamp, String previousHash,
+            ArrayList<Credential> credentials, String validatorId, String signature) {
+        if (credentials == null) {
+            throw new IllegalArgumentException("Credentials are required");
+        }
+        if (validatorId == null || validatorId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Validator ID is required");
+        }
+        String hash = calculateHash(index, fixedTimestamp, previousHash, credentials, validatorId);
+        this.header = new BlockHeader(index, fixedTimestamp, previousHash, hash, validatorId, signature);
+        this.credentials = new ArrayList<>(credentials);
+    }
+
     /**
      * Create a copy of an existing block.
      * 
@@ -80,11 +108,11 @@ public class Block {
         this.header = new BlockHeader(other.header);
         this.credentials = new ArrayList<>(other.credentials);
     }
-    
+
     /**
      * Create a copy of an existing block with a new signature.
      * 
-     * @param other the block to copy
+     * @param other     the block to copy
      * @param signature the signature to set on the new block
      * @throws IllegalArgumentException if other is null
      */
@@ -102,75 +130,75 @@ public class Block {
      * Used by JsonSerializer when loading blocks from storage.
      * Public to allow deserialization from outside the package.
      * 
-     * @param index the block index
-     * @param timestamp the block timestamp
+     * @param index        the block index
+     * @param timestamp    the block timestamp
      * @param previousHash the previous block hash
-     * @param hash the block hash (not recalculated)
-     * @param validatorId the validator ID
-     * @param signature the block signature (may be null)
-     * @param credential the credential payload
+     * @param hash         the block hash (not recalculated)
+     * @param validatorId  the validator ID
+     * @param signature    the block signature (may be null)
+     * @param credential   the credential payload
      * @throws IllegalArgumentException if any required field is invalid
      */
-    public Block(int index, long timestamp, String previousHash, String hash, 
-          String validatorId, String signature, ArrayList<Credential> credentials) {
+    public Block(int index, long timestamp, String previousHash, String hash,
+            String validatorId, String signature, ArrayList<Credential> credentials) {
         // Validate credential first
         if (credentials == null) {
             throw new IllegalArgumentException("Credentials are required");
         }
-        
+
         // Validate validatorId
         if (validatorId == null || validatorId.trim().isEmpty()) {
             throw new IllegalArgumentException("Validator ID is required");
         }
-        
+
         // Validate index
         if (index < 0) {
             throw new IllegalArgumentException("Block index cannot be negative");
         }
-        
+
         // Validate timestamp
         if (timestamp < 0) {
             throw new IllegalArgumentException("Block timestamp cannot be negative");
         }
-        
+
         // Validate hash format (must be exactly 64 hex chars for SHA-256)
         if (hash == null || !hash.matches("^[a-fA-F0-9]{64}$")) {
             throw new IllegalArgumentException("Hash must be a valid 64-character hexadecimal string");
         }
-        
+
         // Validate previousHash (genesis can be "0", others must be 64 hex chars)
-        if (previousHash == null || 
-            (!previousHash.equals("0") && !previousHash.matches("^[a-fA-F0-9]{64}$"))) {
+        if (previousHash == null ||
+                (!previousHash.equals("0") && !previousHash.matches("^[a-fA-F0-9]{64}$"))) {
             throw new IllegalArgumentException("Previous hash must be '0' or a valid 64-character hexadecimal string");
         }
-        
+
         // Validate signature format if present (Base64 encoded)
         if (signature != null && !signature.trim().isEmpty()) {
             if (!signature.matches("^[A-Za-z0-9+/]+={0,2}$")) {
                 throw new IllegalArgumentException("Signature must be a valid Base64 string");
             }
         }
-        
+
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId, signature);
-        this.credentials = new ArrayList<>(credentials);  // Defensive copy for immutability
+        this.credentials = new ArrayList<>(credentials); // Defensive copy for immutability
     }
 
     /**
      * Calculate SHA-256 hash of the block's data.
      * 
-     * @param index the block index
-     * @param timestamp the block timestamp in milliseconds
+     * @param index        the block index
+     * @param timestamp    the block timestamp in milliseconds
      * @param previousHash the hash of the previous block
-     * @param credential the credential payload
-     * @param validatorId the ID of the validator
+     * @param credential   the credential payload
+     * @param validatorId  the ID of the validator
      * @return hex-encoded SHA-256 hash of the concatenated data
      */
     private String calculateHash(int index, long timestamp, String previousHash,
-                                 ArrayList<Credential> credentials, String validatorId) {
+            ArrayList<Credential> credentials, String validatorId) {
         String data = index + timestamp + previousHash + credentials.toString() + validatorId;
         return CryptoUtils.applySha256(data);
     }
-    
+
     /**
      * Verify that the stored hash matches the recalculated hash.
      * 
@@ -178,12 +206,11 @@ public class Block {
      */
     public boolean isHashValid() {
         String calculatedHash = calculateHash(
-            header.getIndex(),
-            header.getTimestamp(),
-            header.getPreviousHash(),
-            credentials,
-            header.getValidatorId()
-        );
+                header.getIndex(),
+                header.getTimestamp(),
+                header.getPreviousHash(),
+                credentials,
+                header.getValidatorId());
         return header.getHash().equals(calculatedHash);
     }
 
@@ -200,16 +227,15 @@ public class Block {
         }
 
         String data = calculateHash(
-            header.getIndex(),
-            header.getTimestamp(),
-            header.getPreviousHash(),
-            credentials,
-            header.getValidatorId()
-        );
+                header.getIndex(),
+                header.getTimestamp(),
+                header.getPreviousHash(),
+                credentials,
+                header.getValidatorId());
 
         return CryptoUtils.verifySignature(data, sig, publicKey);
     }
-    
+
     /**
      * Check if this block correctly links to the previous block.
      * 
@@ -222,7 +248,7 @@ public class Block {
         }
         return header.getPreviousHash().equals(previousBlock.getHash());
     }
-    
+
     /**
      * Get the block header.
      * 
@@ -231,7 +257,7 @@ public class Block {
     public BlockHeader getHeader() {
         return header;
     }
-    
+
     /**
      * Get the credential payload.
      * 
@@ -240,7 +266,7 @@ public class Block {
     public ArrayList<Credential> getCredentials() {
         return credentials;
     }
-    
+
     /**
      * Get the block index.
      * 
@@ -249,7 +275,7 @@ public class Block {
     public int getIndex() {
         return header.getIndex();
     }
-    
+
     /**
      * Get the block timestamp.
      * 
@@ -258,7 +284,7 @@ public class Block {
     public long getTimestamp() {
         return header.getTimestamp();
     }
-    
+
     /**
      * Get the hash of the previous block.
      * 
@@ -267,7 +293,7 @@ public class Block {
     public String getPreviousHash() {
         return header.getPreviousHash();
     }
-    
+
     /**
      * Get the hash of this block.
      * 
@@ -276,7 +302,7 @@ public class Block {
     public String getHash() {
         return header.getHash();
     }
-    
+
     /**
      * Get the validator ID.
      * 
@@ -285,7 +311,7 @@ public class Block {
     public String getValidatorId() {
         return header.getValidatorId();
     }
-    
+
     /**
      * Get the block signature.
      * 
@@ -294,21 +320,23 @@ public class Block {
     public String getSignature() {
         return header.getSignature();
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(header, credentials);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
+        if (this == obj)
+            return true;
+        if (obj == null || getClass() != obj.getClass())
+            return false;
         Block other = (Block) obj;
         return Objects.equals(header, other.header) &&
-               Objects.equals(credentials, other.credentials);
+                Objects.equals(credentials, other.credentials);
     }
-    
+
     @Override
     public String toString() {
         return "Block [header=" + header + ", credential=" + credentials + "]";

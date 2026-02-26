@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.immutable.credentials.util.Logger;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -388,6 +389,7 @@ public class P2PNetwork {
 	 * Synchronize the local chain with peers.
 	 */
 	public void syncChain() {
+
 		if (connectionsByNodeId.isEmpty())
 			return;
 		for (PeerConnection peer : connectionsByNodeId.values()) {
@@ -396,6 +398,7 @@ public class P2PNetwork {
 			NetworkMessage message = new NetworkMessage(MessageType.CHAIN_HEIGHT, node.getId(), payload);
 			sendMessage(peer, message);
 		}
+
 	}
 
 	/**
@@ -548,7 +551,8 @@ public class P2PNetwork {
 	}
 
 	/**
-	 * Handle a BLOCK_VOTE message — a validator is casting a vote on a proposed block.
+	 * Handle a BLOCK_VOTE message — a validator is casting a vote on a proposed
+	 * block.
 	 * Extracts vote data from the payload and delegates to node.handleBlockVote.
 	 *
 	 * @param message    the incoming BLOCK_VOTE message
@@ -606,7 +610,8 @@ public class P2PNetwork {
 			syncChain();
 			return;
 		}
-		if (!validateAndAppendBlock(block)) return;
+		if (!validateAndAppendBlock(block))
+			return;
 		broadcastMessage(message, connection.peer.getNodeId());
 	}
 
@@ -708,7 +713,8 @@ public class P2PNetwork {
 			return;
 		if (!block.getPreviousHash().equals(last.getHash()))
 			return;
-		if (!validateAndAppendBlock(block)) return;
+		if (!validateAndAppendBlock(block))
+			return;
 		System.out.println("[P2PNetwork] Appended block " + block.getIndex() + " from " + connection.peer.getNodeId());
 	}
 
@@ -775,12 +781,16 @@ public class P2PNetwork {
 		String payload = message.getPayload().toString();
 		List<Peer> peers = JsonSerializer.jsonToPeerList(payload);
 		for (Peer peer : peers) {
-			if (node.getId().equals(peer.getNodeId()))
+			if (node.getId().equals(peer.getNodeId())) {
 				continue;
-			if (connectionsByNodeId.containsKey(peer.getNodeId()))
+			}
+			if (connectionsByNodeId.containsKey(peer.getNodeId())) {
 				continue;
-			knownPeers.putIfAbsent(peer.getNodeId(), peer);
+			}
 			connectToPeer(peer.getAddress(), peer.getPort());
+
+			knownPeers.putIfAbsent(peer.getNodeId(), peer);
+
 		}
 	}
 

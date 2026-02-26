@@ -121,9 +121,9 @@ public class NetworkStatusPanel extends VBox {
     // -------------------------------------------------------------------------
 
     /**
-     * Build the toolbar containing a <em>Refresh</em> button that calls
-     * {@link #onRefresh()} and a <em>Connect to Peer</em> button that opens
-     * the peer-connection dialog via {@link #onConnectToPeer()}.
+     * Build the toolbar containing a Refresh button wired to {@link #onRefresh()}
+     * and a Connect to Peer button that opens the peer-connection dialog via
+     * {@link #onConnectToPeer()}.
      *
      * @return a fully configured {@link ToolBar}
      */
@@ -138,20 +138,12 @@ public class NetworkStatusPanel extends VBox {
     }
 
     /**
-     * Build the <em>Node Information</em> section as a collapsible
-     * {@link TitledPane} wrapping a {@link GridPane} of label–value rows.
-     *
-     * <p>
-     * Rows displayed:
-     * </p>
-     * <ul>
-     * <li>Node ID</li>
-     * <li>Address (host:port)</li>
-     * <li>Node Type (Validator / University / Read-Only)</li>
-     * <li>Validator ID – shown only when {@link NodeService#isValidator()} is
-     * {@code true}; hidden for non-validator nodes</li>
-     * <li>Running state (Yes / No)</li>
-     * </ul>
+     * Build the Node Information section as a collapsible {@link TitledPane}
+     * wrapping a {@link GridPane} of label–value rows.
+     * The rows show the node ID, address in host:port format, node type
+     * (Validator / University / Read-Only), validator ID when
+     * {@link NodeService#isValidator()} is {@code true} or "N/A" otherwise,
+     * and the running state as "Yes" or "No".
      *
      * @return a {@link TitledPane} labelled "Node Information"
      */
@@ -189,18 +181,13 @@ public class NetworkStatusPanel extends VBox {
     }
 
     /**
-     * Build the <em>Connected Peers</em> section containing a heading, a
-     * peer-count label, and a scrollable {@link ListView} of formatted peer
-     * descriptors.
-     *
-     * <p>
-     * Each list entry is formatted by {@link #formatPeer(Peer)} as:<br>
+     * Build the Connected Peers section containing a heading, a peer-count
+     * label, and a scrollable {@link ListView} of formatted peer descriptors.
+     * Each list entry is formatted by {@link #formatPeer(Peer)} as
      * {@code "<nodeId>  <address>:<port>  [Validator]"} where the
      * {@code [Validator]} suffix is only appended for validator peers.
-     * </p>
      *
-     * @return a {@link VBox} containing the section heading, count label, and list
-     *         view
+     * @return a {@link VBox} containing the section heading, count label, and list view
      */
     private VBox buildPeerListSection() {
         Text title = new Text("Connected Peers");
@@ -251,11 +238,8 @@ public class NetworkStatusPanel extends VBox {
     /**
      * Reload all dynamic values from the service layer and repopulate every
      * section of the panel.
-     *
-     *
-     * This method is triggered by the <em>Refresh</em> button and may also be
-     * called programmatically after network events (e.g. after a peer connects
-     * or a block is finalised).
+     * Called by the Refresh button and may also be invoked programmatically
+     * after network events such as a peer connecting or a block being finalised.
      */
     public void onRefresh() {
         refreshNodeInfo();
@@ -267,11 +251,8 @@ public class NetworkStatusPanel extends VBox {
      * Repopulate the {@link #peerListView} with the latest connected peers
      * returned by {@link NetworkService#getConnectedPeers()} and update
      * the {@link #peerCountLabel} to reflect the current count.
-     *
-     * <p>
-     * If the peer list is empty, a single placeholder entry reading
-     * <em>"No peers connected"</em> is shown instead.
-     * </p>
+     * If the peer list is empty a single placeholder entry reading
+     * "No peers connected" is shown instead.
      */
     private void refreshPeerList() {
         List<Peer> peers = networkService.getConnectedPeers();
@@ -289,15 +270,11 @@ public class NetworkStatusPanel extends VBox {
     }
 
     /**
-     * Refresh the <em>Node Information</em> labels using the latest data
-     * from {@link NodeService}.
-     *
-     * <p>
-     * The Validator ID row is conditionally populated: when
-     * {@link NodeService#isValidator()} returns {@code false} the label is
-     * set to <em>"N/A"</em>. The node type is derived from
-     * {@link NodeService#isValidator()} and {@link NodeService#isUniversity()}.
-     * </p>
+     * Refresh the Node Information labels using the latest data from {@link NodeService}.
+     * The Validator ID row is set to "N/A" when {@link NodeService#isValidator()}
+     * returns {@code false}.
+     * The node type string is derived from {@link NodeService#isValidator()} and
+     * {@link NodeService#isUniversity()}.
      */
     private void refreshNodeInfo() {
         nodeIdLabel.setText(nodeService.getNodeId());
@@ -324,14 +301,11 @@ public class NetworkStatusPanel extends VBox {
     }
 
     /**
-     * Refresh the <em>Network Statistics</em> labels using the latest data
-     * from {@link NetworkService}.
-     *
-     * <p>
-     * The {@link #networkRunningLabel} is coloured green when the listener is
-     * active and red when it is stopped. The {@link #syncStatusLabel} displays
-     * the string returned by {@link NetworkService#getSyncStatusDescription()}.
-     * </p>
+     * Refresh the Network Statistics labels using the latest data from {@link NetworkService}.
+     * The {@link #networkRunningLabel} is coloured green when the listener is active
+     * and red when it is stopped.
+     * The {@link #syncStatusLabel} displays the string returned by
+     * {@link NetworkService#getSyncStatusDescription()}.
      */
     private void refreshNetworkStats() {
         boolean netRunning = networkService.isNetworkRunning();
@@ -346,15 +320,13 @@ public class NetworkStatusPanel extends VBox {
     // -------------------------------------------------------------------------
 
     /**
-     * Open a two-field input dialog prompting for a peer's host name/IP and
-     * port number. On confirmation the values are validated and forwarded to
+     * Open a two-field input dialog prompting for a peer's host name/IP and port number.
+     * On confirmation the values are validated and forwarded to
      * {@link NetworkService#connectToPeer(String, int)}.
-     *
-     * <p>
-     * An {@link Alert} is shown afterwards to report success or the specific
-     * error message thrown by the service. On success, {@link #onRefresh()}
-     * is called automatically so the new peer appears in the list immediately.
-     * </p>
+     * An {@link Alert} is shown afterwards to report success or the specific error
+     * message thrown by the service.
+     * On success {@link #onRefresh()} is called automatically so the new peer
+     * appears in the list immediately.
      */
     private void onConnectToPeer() {
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -413,14 +385,9 @@ public class NetworkStatusPanel extends VBox {
 
     /**
      * Format a single {@link Peer} as a human-readable list-item string.
-     *
-     * <p>
-     * The returned string follows the pattern:<br>
-     * {@code "<nodeId>  <address>:<port>  [Validator]"}<br>
-     * where the {@code [Validator]} suffix is only appended when
-     * {@link Peer#isValidator()} returns {@code true}, and
-     * {@code [Offline]} is appended when the peer is not connected.
-     * </p>
+     * The pattern is {@code "<nodeId>  <address>:<port>"} with a {@code [Validator]}
+     * suffix appended when {@link Peer#isValidator()} is {@code true}, and an
+     * {@code [Offline]} suffix appended when the peer is not connected.
      *
      * @param peer the peer to format; must not be {@code null}
      * @return a non-null, human-readable string representation of the peer
@@ -440,7 +407,7 @@ public class NetworkStatusPanel extends VBox {
     }
 
     /**
-     * Create a bold label suitable for use as a row header inside a
+     * Create a bold {@link Label} suitable for use as a row header inside a
      * {@link GridPane} info section.
      *
      * @param text the label text; must not be {@code null}
@@ -453,10 +420,9 @@ public class NetworkStatusPanel extends VBox {
     }
 
     /**
-     * Show a simple informational or error {@link Alert} dialog.
+     * Show a simple {@link Alert} dialog with no header text.
      *
-     * @param type    the alert type (e.g. {@link AlertType#INFORMATION} or
-     *                {@link AlertType#ERROR})
+     * @param type    the alert type, e.g. {@link AlertType#INFORMATION} or {@link AlertType#ERROR}
      * @param title   the alert window title
      * @param message the message body to display
      */

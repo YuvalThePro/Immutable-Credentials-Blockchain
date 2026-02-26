@@ -16,7 +16,8 @@ data/
 *.dat
 
 # Configuration with sensitive information
-config/
+config
+config/*
 *.key
 *.pem
 

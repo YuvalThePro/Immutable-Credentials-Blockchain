@@ -212,7 +212,7 @@ public class MainWindow extends Application {
 
             // Load all network settings from the database.
             AuthService.NetworkSettings net = ConfigLoader.loadNetworkSettings(authService);
-            P2PNetwork network = new P2PNetwork(node, net.port, net.maxConnections,
+            P2PNetwork network = new P2PNetwork(node, node.getPort(), net.maxConnections,
                     (int) net.connectTimeout, net.discoveryInterval, net.syncInterval);
             node.setNetwork(network);
 

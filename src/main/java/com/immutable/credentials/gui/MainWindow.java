@@ -1,6 +1,7 @@
 package com.immutable.credentials.gui;
 
 import java.io.IOException;
+import java.net.URL;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
@@ -147,6 +148,7 @@ public class MainWindow extends Application {
         rootLayout.setBottom(buildStatusBar());
 
         Scene scene = new Scene(rootLayout, 900, 650);
+        applyStylesheet(scene);
         String windowTitle = "Immutable Credentials Blockchain";
         if (nodeConfig.getDisplayName() != null && !nodeConfig.getDisplayName().trim().isEmpty()) {
             windowTitle += " — " + nodeConfig.getDisplayName();
@@ -330,10 +332,12 @@ public class MainWindow extends Application {
      */
     private HBox buildStatusBar() {
         statusNodeLabel = new Label("Node: -");
+        statusBlockLabel = new Label("Blocks: 0");
+        statusPeerLabel = new Label("Peers: 0");
 
         statusBar = new HBox(20, statusNodeLabel, statusBlockLabel, statusPeerLabel);
         statusBar.setPadding(new Insets(4, 8, 4, 8));
-        statusBar.setStyle("-fx-background-color: #f0f0f0; -fx-border-color: #cccccc; -fx-border-width: 1 0 0 0;");
+        statusBar.getStyleClass().add("status-bar");
         return statusBar;
     }
 
@@ -495,5 +499,12 @@ public class MainWindow extends Application {
         alert.setHeaderText(null);
         alert.setContentText(message != null ? message : "An unexpected error occurred.");
         alert.showAndWait();
+    }
+
+    private void applyStylesheet(Scene scene) {
+        URL stylesheet = MainWindow.class.getResource("/com/immutable/credentials/gui/css/main.css");
+        if (stylesheet != null) {
+            scene.getStylesheets().add(stylesheet.toExternalForm());
+        }
     }
 }

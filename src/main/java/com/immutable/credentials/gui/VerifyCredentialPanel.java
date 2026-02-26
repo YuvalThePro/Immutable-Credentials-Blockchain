@@ -61,9 +61,10 @@ public class VerifyCredentialPanel extends VBox {
 
         setSpacing(10);
         setPadding(new Insets(15));
+        getStyleClass().add("verify-panel");
 
         statusLabel = new Label("Enter a Student ID or Credential ID to search.");
-        statusLabel.setStyle("-fx-text-fill: #555555;");
+        statusLabel.getStyleClass().add("muted-text");
 
         getChildren().addAll(
                 buildSearchBar(),
@@ -117,7 +118,7 @@ public class VerifyCredentialPanel extends VBox {
 
         resultsScrollPane = new ScrollPane(resultsContainer);
         resultsScrollPane.setFitToWidth(true);
-        resultsScrollPane.setStyle("-fx-background-color: transparent;");
+        resultsScrollPane.getStyleClass().add("transparent-scroll");
         return resultsScrollPane;
     }
 
@@ -190,11 +191,7 @@ public class VerifyCredentialPanel extends VBox {
         card.setHgap(15);
         card.setVgap(6);
         card.setPadding(new Insets(12));
-        card.setStyle(
-                "-fx-background-color: #ffffff;" +
-                        "-fx-border-color: #cccccc;" +
-                        "-fx-border-radius: 6;" +
-                        "-fx-background-radius: 6;");
+        card.getStyleClass().add("credential-card");
 
         int row = 0;
         card.add(boldLabel("Student Name:"), 0, row);
@@ -212,11 +209,7 @@ public class VerifyCredentialPanel extends VBox {
                 credential.getDateAwarded() != null ? credential.getDateAwarded().toString() : "N/A"), 1, row++);
 
         Label badge = new Label("✓  Verified on Blockchain");
-        badge.setStyle(
-                "-fx-text-fill: white;" +
-                        "-fx-background-color: #2e7d32;" +
-                        "-fx-background-radius: 4;" +
-                        "-fx-padding: 3 8 3 8;");
+        badge.getStyleClass().add("verified-badge");
         card.add(badge, 1, row);
 
         return card;
@@ -225,7 +218,7 @@ public class VerifyCredentialPanel extends VBox {
     /** Small helper to create a right-aligned bold label. */
     private Label boldLabel(String text) {
         Label l = new Label(text);
-        l.setStyle("-fx-font-weight: bold;");
+        l.getStyleClass().add("field-label");
         return l;
     }
 
@@ -236,7 +229,7 @@ public class VerifyCredentialPanel extends VBox {
     private void showNotFound() {
         resultsContainer.getChildren().clear();
         Label msg = new Label("No credentials found for the given ID.");
-        msg.setStyle("-fx-text-fill: #c62828; -fx-font-size: 13;");
+        msg.getStyleClass().add("error-text");
         resultsContainer.getChildren().add(msg);
         updateStatus("No results found.");
     }

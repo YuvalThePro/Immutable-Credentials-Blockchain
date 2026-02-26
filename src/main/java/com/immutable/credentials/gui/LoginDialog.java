@@ -1,5 +1,7 @@
 package com.immutable.credentials.gui;
 
+import java.net.URL;
+
 import com.immutable.credentials.auth.NodeConfig;
 import com.immutable.credentials.crypto.CryptoUtils;
 import com.immutable.credentials.service.AuthService;
@@ -127,11 +129,10 @@ public class LoginDialog {
         // ---- Root layout ----
         VBox root = new VBox(14, titleBox, form, errorLabel, buttonRow);
         root.setPadding(new Insets(30));
-        root.setStyle("-fx-background-color: #FFFFFF; "
-                + "-fx-border-color: #CCCCCC; "
-                + "-fx-border-width: 1; "
-                + "-fx-border-radius: 6; "
-                + "-fx-background-radius: 6;");
+        root.getStyleClass().add("login-root");
+        title.getStyleClass().add("login-title");
+        subtitle.getStyleClass().add("login-subtitle");
+        errorLabel.getStyleClass().add("error-text");
         root.setPrefWidth(370);
 
         // ---- Event handlers ----
@@ -143,6 +144,10 @@ public class LoginDialog {
         passwordField.setOnAction(e -> onLogin());
 
         Scene scene = new Scene(root);
+        URL stylesheet = LoginDialog.class.getResource("/com/immutable/credentials/gui/css/main.css");
+        if (stylesheet != null) {
+            scene.getStylesheets().add(stylesheet.toExternalForm());
+        }
         stage.setScene(scene);
         stage.showAndWait();
     }

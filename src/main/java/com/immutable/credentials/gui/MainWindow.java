@@ -204,9 +204,9 @@ public class MainWindow extends Application {
                 }
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
                 if ("university".equals(nodeType)) {
-                    node = new Node(dbConfig.getInstitution(), address, port, poa, storageFile, true);
+                    node = new Node(nodeConfig.getId(), address, port, poa, storageFile, true);
                 } else {
-                    node = new Node("readonly-" + port, address, port, poa, storageFile);
+                    node = new Node(nodeConfig.getId(), address, port, poa, storageFile);
                 }
             }
 

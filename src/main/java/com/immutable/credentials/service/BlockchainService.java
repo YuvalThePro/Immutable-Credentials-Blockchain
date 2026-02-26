@@ -38,7 +38,8 @@ public class BlockchainService {
      * Retrieve a specific block by its index in the chain.
      * 
      * @param index the zero-based block index
-     * @return the Block at the given index, or null if the index is out of range or the chain is empty
+     * @return the Block at the given index, or null if the index is out of range or
+     *         the chain is empty
      * @throws IllegalArgumentException if index is negative
      */
     public Block getBlockByIndex(int index) throws IllegalArgumentException {
@@ -67,10 +68,12 @@ public class BlockchainService {
     }
 
     /**
-     * Validate the integrity of the entire local chain against the known validator public keys.
+     * Validate the integrity of the entire local chain against the known validator
+     * public keys.
      * 
      * @return true if the chain passes all integrity checks;
-     *         false if any block has an invalid hash, broken link, invalid timestamp, or invalid signature
+     *         false if any block has an invalid hash, broken link, invalid
+     *         timestamp, or invalid signature
      */
     public boolean isChainValid() {
         return node.validateIncomingChain(new Blockchain(node.getChain()));

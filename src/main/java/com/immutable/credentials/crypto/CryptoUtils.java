@@ -11,10 +11,11 @@ import java.util.Base64;
 
 /**
  * Cryptographic utilities for SHA-256 hashing and RSA signatures.
- * Provides methods for hash calculation, key generation, signing, and verification.
+ * Provides methods for hash calculation, key generation, signing, and
+ * verification.
  */
 public class CryptoUtils {
-    
+
     /**
      * Compute the SHA-256 hex digest of the given UTF-8 string.
      * This is the canonical hash method used throughout the codebase,
@@ -31,7 +32,8 @@ public class CryptoUtils {
             StringBuffer hexString = new StringBuffer();
             for (int i = 0; i < hash.length; i++) {
                 String hex = Integer.toHexString(0xff & hash[i]);
-                if (hex.length() == 1) hexString.append('0');
+                if (hex.length() == 1)
+                    hexString.append('0');
                 hexString.append(hex);
             }
             return hexString.toString();
@@ -39,7 +41,7 @@ public class CryptoUtils {
             throw new RuntimeException(e);
         }
     }
-    
+
     /**
      * Generate an RSA key pair with 2048-bit keys.
      * 
@@ -54,11 +56,11 @@ public class CryptoUtils {
             throw new RuntimeException(e);
         }
     }
-    
+
     /**
      * Sign data with a private key using RSA.
      * 
-     * @param data the string to sign
+     * @param data       the string to sign
      * @param privateKey the private key for signing
      * @return Base64-encoded signature
      */
@@ -73,13 +75,13 @@ public class CryptoUtils {
             throw new RuntimeException(e);
         }
     }
-    
+
     /**
      * Verify a signature with a public key.
      * 
-     * @param data the original data that was signed
+     * @param data         the original data that was signed
      * @param signatureStr the Base64-encoded signature
-     * @param publicKey the public key for verification
+     * @param publicKey    the public key for verification
      * @return true if the signature is valid, false otherwise
      */
     public static boolean verifySignature(String data, String signatureStr, PublicKey publicKey) {
@@ -93,7 +95,7 @@ public class CryptoUtils {
             return false;
         }
     }
-    
+
     /**
      * Convert a key to a Base64-encoded string.
      * 
@@ -109,7 +111,8 @@ public class CryptoUtils {
      *
      * @param base64 the Base64-encoded public key
      * @return the reconstructed PublicKey
-     * @throws IllegalArgumentException if the string is null/empty or cannot be parsed
+     * @throws IllegalArgumentException if the string is null/empty or cannot be
+     *                                  parsed
      */
     public static PublicKey publicKeyFromBase64(String base64) {
         if (base64 == null || base64.trim().isEmpty()) {
@@ -130,7 +133,8 @@ public class CryptoUtils {
      *
      * @param base64 the Base64-encoded private key
      * @return the reconstructed PrivateKey
-     * @throws IllegalArgumentException if the string is null/empty or cannot be parsed
+     * @throws IllegalArgumentException if the string is null/empty or cannot be
+     *                                  parsed
      */
     public static PrivateKey privateKeyFromBase64(String base64) {
         if (base64 == null || base64.trim().isEmpty()) {
@@ -163,7 +167,6 @@ public class CryptoUtils {
         return keyPair;
     }
 
-
     /**
      * Validate an Israeli ID number using the checksum algorithm.
      * 
@@ -174,17 +177,17 @@ public class CryptoUtils {
         if (id == null || id.trim().isEmpty()) {
             return false;
         }
-        
+
         id = id.trim();
-        
+
         if (!id.matches("\\d{9}")) {
             return false;
         }
-        
+
         int sum = 0;
         for (int i = 0; i < 9; i++) {
             int digit = Character.getNumericValue(id.charAt(i));
-            
+
             if (i % 2 == 1) {
                 digit *= 2;
                 if (digit > 9) {
@@ -193,11 +196,8 @@ public class CryptoUtils {
             }
             sum += digit;
         }
-        
+
         return sum % 10 == 0;
     }
 
-
-
 }
-

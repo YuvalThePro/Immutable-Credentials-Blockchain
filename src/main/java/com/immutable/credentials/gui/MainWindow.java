@@ -438,8 +438,7 @@ public class MainWindow extends Application {
         alert.setHeaderText("Immutable Credentials Blockchain");
         alert.setContentText(
                 "Version: 1.0.0\n" +
-                        "A Proof-of-Authority blockchain for issuing and verifying academic credentials.\n\n" +
-                        "License: MIT");
+                        "A Proof-of-Authority blockchain for issuing and verifying academic credentials.\n\n");
         alert.showAndWait();
     }
 

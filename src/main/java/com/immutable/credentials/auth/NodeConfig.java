@@ -9,7 +9,7 @@ public class NodeConfig {
 
     private final String id;
     private final String displayName;
-    private final String nodeType;    // "VALIDATOR", "UNIVERSITY", or "READ_ONLY"
+    private final String nodeType; // "VALIDATOR", "UNIVERSITY", or "READ_ONLY"
     private final String validatorId; // non-null only when nodeType is "VALIDATOR"
     private final String institution;
     private final int port;

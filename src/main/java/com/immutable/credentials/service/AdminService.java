@@ -63,21 +63,21 @@ public class AdminService {
      * The plain-text password is hashed with CryptoUtils.applySha256 before being
      * stored.
      *
-     * @param israeliId   the Israeli national ID of the new staff member
+     * @param id          the Israeli national ID of the new staff member
      * @param plainPw     the plain-text password (will be hashed before storage)
      * @param displayName the person's display name
      * @param port        the TCP port for this node (typically the institution's
      *                    shared port)
      * @param dataDir     the local data directory path for blockchain storage
-     * @throws SQLException if a database error occurs or israeliId is already taken
+     * @throws SQLException if a database error occurs or id is already taken
      */
-    public void registerStaff(String israeliId, String plainPw,
+    public void registerStaff(String id, String plainPw,
             String displayName, int port, String dataDir) throws SQLException {
-        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
-            throw new IllegalArgumentException("Invalid Israeli ID: " + israeliId);
+        if (!CryptoUtils.isValidIsraeliId(id)) {
+            throw new IllegalArgumentException("Invalid Israeli ID: " + id);
         }
         String hash = CryptoUtils.applySha256(plainPw);
-        authService.registerUser(israeliId, hash, "UNIVERSITY", null,
+        authService.registerUser(id, hash, "UNIVERSITY", null,
                 adminConfig.getInstitution(), port, dataDir, displayName);
     }
 
@@ -88,20 +88,20 @@ public class AdminService {
      * The plain-text password is hashed with CryptoUtils.applySha256 before being
      * stored.
      *
-     * @param israeliId   the Israeli national ID of the student
+     * @param id          the Israeli national ID of the student
      * @param plainPw     the plain-text password (will be hashed before storage)
      * @param displayName the student's display name
      * @param port        the TCP port for this node
      * @param dataDir     the local data directory path for blockchain storage
-     * @throws SQLException if a database error occurs or israeliId is already taken
+     * @throws SQLException if a database error occurs or id is already taken
      */
-    public void registerStudent(String israeliId, String plainPw,
+    public void registerStudent(String id, String plainPw,
             String displayName, int port, String dataDir) throws SQLException {
-        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
-            throw new IllegalArgumentException("Invalid Israeli ID: " + israeliId);
+        if (!CryptoUtils.isValidIsraeliId(id)) {
+            throw new IllegalArgumentException("Invalid Israeli ID: " + id);
         }
         String hash = CryptoUtils.applySha256(plainPw);
-        authService.registerUser(israeliId, hash, "READ_ONLY", null,
+        authService.registerUser(id, hash, "READ_ONLY", null,
                 adminConfig.getInstitution(), port, dataDir, displayName);
     }
 
@@ -112,7 +112,7 @@ public class AdminService {
      * The plain-text password is hashed with CryptoUtils.applySha256 before being
      * stored.
      *
-     * @param israeliId       the Israeli national ID assigned to the institution
+     * @param id              the Israeli national ID assigned to the institution
      *                        admin
      * @param plainPw         the plain-text password (will be hashed before
      *                        storage)
@@ -120,21 +120,21 @@ public class AdminService {
      * @param displayName     the display name for this admin account
      * @param port            the TCP port the institution node will listen on
      * @param dataDir         the local data directory path for blockchain storage
-     * @throws SQLException          if a database error occurs or israeliId is
+     * @throws SQLException          if a database error occurs or id is
      *                               already taken
      * @throws IllegalStateException if the calling node is not a VALIDATOR
      */
-    public void registerInstitution(String israeliId, String plainPw,
+    public void registerInstitution(String id, String plainPw,
             String institutionName, String displayName,
             int port, String dataDir) throws SQLException {
-        if (!CryptoUtils.isValidIsraeliId(israeliId)) {
-            throw new IllegalArgumentException("Invalid Israeli ID: " + israeliId);
+        if (!CryptoUtils.isValidIsraeliId(id)) {
+            throw new IllegalArgumentException("Invalid Israeli ID: " + id);
         }
         if (!"VALIDATOR".equals(adminConfig.getNodeType())) {
             throw new IllegalStateException("Only VALIDATOR nodes may register new institutions.");
         }
         String hash = CryptoUtils.applySha256(plainPw);
-        authService.registerUser(israeliId, hash, "UNIVERSITY", null,
+        authService.registerUser(id, hash, "UNIVERSITY", null,
                 institutionName, port, dataDir, displayName);
     }
 

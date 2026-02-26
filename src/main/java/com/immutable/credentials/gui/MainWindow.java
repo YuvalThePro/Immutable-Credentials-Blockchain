@@ -330,8 +330,6 @@ public class MainWindow extends Application {
      */
     private HBox buildStatusBar() {
         statusNodeLabel = new Label("Node: -");
-        statusBlockLabel = new Label("Blocks: 0");
-        statusPeerLabel = new Label("Peers: 0");
 
         statusBar = new HBox(20, statusNodeLabel, statusBlockLabel, statusPeerLabel);
         statusBar.setPadding(new Insets(4, 8, 4, 8));

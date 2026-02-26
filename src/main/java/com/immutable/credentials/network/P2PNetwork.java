@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.immutable.credentials.util.Logger;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -84,6 +85,16 @@ public class P2PNetwork {
 		this.syncIntervalMillis = syncIntervalMillis;
 		this.connectionPool = Executors.newFixedThreadPool(maxConnections);
 		this.scheduler = Executors.newScheduledThreadPool(3);
+	}
+
+	/**
+	 * Return whether the network listener is active.
+	 *
+	 * @return {@code true} if {@link #start()} has been called and
+	 *         {@link #stop()} has not yet been called
+	 */
+	public boolean isRunning() {
+		return running;
 	}
 
 	/**
@@ -346,25 +357,6 @@ public class P2PNetwork {
 	 * Sent by the current round-robin proposer after creating and signing a block.
 	 * Peers will validate the block and respond with BLOCK_VOTE messages.
 	 *
-	 * <p>
-	 * Steps to implement:
-	 * </p>
-	 * <p>
-	 * Steps to implement:
-	 * </p>
-	 * <ol>
-	 * <li>Serialize the block to JSON using
-	 * {@code JsonSerializer.blockToJson(block)}</li>
-	 * <li>Create a {@link NetworkMessage} with type {@code PROPOSE_BLOCK}</li>
-	 * <li>Add the message ID to {@code seenMessageIds} to prevent echo</li>
-	 * <li>Call {@code broadcastMessage(message, null)} to send to all peers</li>
-	 * <li>Serialize the block to JSON using
-	 * {@code JsonSerializer.blockToJson(block)}</li>
-	 * <li>Create a {@link NetworkMessage} with type {@code PROPOSE_BLOCK}</li>
-	 * <li>Add the message ID to {@code seenMessageIds} to prevent echo</li>
-	 * <li>Call {@code broadcastMessage(message, null)} to send to all peers</li>
-	 * </ol>
-	 *
 	 * @param block the signed block to propose for voting
 	 */
 	public void broadcastProposedBlock(Block block) {
@@ -378,37 +370,12 @@ public class P2PNetwork {
 	 * Broadcast a vote on a proposed block to all peers.
 	 * Sent by each validator after verifying a received PROPOSE_BLOCK.
 	 *
-	 * <p>
-	 * Steps to implement:
-	 * </p>
-	 * <p>
-	 * Steps to implement:
-	 * </p>
-	 * <ol>
-	 * <li>Create a {@link JSONObject} payload with keys:
-	 * "blockIndex" (int), "blockHash" (String),
-	 * "voterId" ({@code node.getId()}), "approve" (boolean)</li>
-	 * <li>Create a {@link NetworkMessage} with type {@code BLOCK_VOTE}</li>
-	 * <li>Add the message ID to {@code seenMessageIds} to prevent echo</li>
-	 * <li>Call {@code broadcastMessage(message, null)} to send to all peers</li>
-	 * <li>Create a {@link JSONObject} payload with keys:
-	 * "blockIndex" (int), "blockHash" (String),
-	 * "voterId" ({@code node.getId()}), "approve" (boolean)</li>
-	 * <li>Create a {@link NetworkMessage} with type {@code BLOCK_VOTE}</li>
-	 * <li>Add the message ID to {@code seenMessageIds} to prevent echo</li>
-	 * <li>Call {@code broadcastMessage(message, null)} to send to all peers</li>
-	 * </ol>
-	 *
 	 * @param blockIndex the index of the block being voted on
 	 * @param blockHash  the hash of the block being voted on
 	 * @param approve    true to approve, false to reject
 	 */
 	public void broadcastBlockVote(int blockIndex, String blockHash, boolean approve) {
 		JSONObject payload = new JSONObject();
-		payload.put("blockIndex", blockIndex);
-		payload.put("blockHash", blockHash);
-		payload.put("voterId", node.getId());
-		payload.put("approve", approve);
 		payload.put("blockIndex", blockIndex);
 		payload.put("blockHash", blockHash);
 		payload.put("voterId", node.getId());
@@ -422,6 +389,7 @@ public class P2PNetwork {
 	 * Synchronize the local chain with peers.
 	 */
 	public void syncChain() {
+
 		if (connectionsByNodeId.isEmpty())
 			return;
 		for (PeerConnection peer : connectionsByNodeId.values()) {
@@ -430,6 +398,7 @@ public class P2PNetwork {
 			NetworkMessage message = new NetworkMessage(MessageType.CHAIN_HEIGHT, node.getId(), payload);
 			sendMessage(peer, message);
 		}
+
 	}
 
 	/**
@@ -550,12 +519,8 @@ public class P2PNetwork {
 	}
 
 	/**
-	 * Handle a PROPOSE_BLOCK message — a validator is proposing a new block for
-	 * voting.
-	 * Deserializes the block and delegates to
-	 * {@code node.handleProposedBlock(block)}.
 	 * Handle a SUBMIT_CREDENTIAL message — a peer is broadcasting a credential
-	 * for mempool inclusion. Delegates to {@code node.handleIncomingCredential}.
+	 * for mempool inclusion. Delegates to node.handleIncomingCredential.
 	 *
 	 * @param message    the incoming SUBMIT_CREDENTIAL message
 	 * @param connection the connection the message arrived on
@@ -571,9 +536,7 @@ public class P2PNetwork {
 
 	/**
 	 * Handle a PROPOSE_BLOCK message — a validator is proposing a new block for
-	 * voting.
-	 * Deserializes the block and delegates to
-	 * {@code node.handleProposedBlock(block)}.
+	 * voting. Deserializes the block and delegates to node.handleProposedBlock.
 	 *
 	 * @param message    the incoming PROPOSE_BLOCK message
 	 * @param connection the connection the message arrived on
@@ -581,7 +544,6 @@ public class P2PNetwork {
 	private void handleProposeBlockMessage(NetworkMessage message, PeerConnection connection) {
 		String payload = message.getPayload().toString();
 		Block block = JsonSerializer.jsonToBlock(payload);
-		if (block == null || !block.isHashValid())
 		if (block == null || !block.isHashValid())
 			return;
 		node.handleProposedBlock(block);
@@ -591,12 +553,8 @@ public class P2PNetwork {
 	/**
 	 * Handle a BLOCK_VOTE message — a validator is casting a vote on a proposed
 	 * block.
-	 * Handle a BLOCK_VOTE message — a validator is casting a vote on a proposed
-	 * block.
-	 * Extracts vote data from the payload and delegates to
-	 * {@code node.handleBlockVote(blockIndex, blockHash, voterId, approve)}.
-	 * 
-	 * 
+	 * Extracts vote data from the payload and delegates to node.handleBlockVote.
+	 *
 	 * @param message    the incoming BLOCK_VOTE message
 	 * @param connection the connection the message arrived on
 	 */
@@ -652,13 +610,27 @@ public class P2PNetwork {
 			syncChain();
 			return;
 		}
+		if (!validateAndAppendBlock(block))
+			return;
+		broadcastMessage(message, connection.peer.getNodeId());
+	}
+
+	/**
+	 * Look up the block's claimed validator, verify its signature, and append the
+	 * block to the local chain.
+	 *
+	 * @param block the block to validate and append
+	 * @return {@code true} on success, {@code false} if the validator is unknown or
+	 *         the signature is invalid
+	 */
+	private boolean validateAndAppendBlock(Block block) {
 		Validator validator = node.getValidatorById(block.getValidatorId());
 		if (validator == null)
-			return;
+			return false;
 		if (!node.validateBlockSignature(block, validator.getPublicKey()))
-			return;
+			return false;
 		node.addBlockToChain(block);
-		broadcastMessage(message, connection.peer.getNodeId());
+		return true;
 	}
 
 	/**
@@ -741,12 +713,8 @@ public class P2PNetwork {
 			return;
 		if (!block.getPreviousHash().equals(last.getHash()))
 			return;
-		Validator validator = node.getValidatorById(block.getValidatorId());
-		if (validator == null)
+		if (!validateAndAppendBlock(block))
 			return;
-		if (!node.validateBlockSignature(block, validator.getPublicKey()))
-			return;
-		node.addBlockToChain(block);
 		System.out.println("[P2PNetwork] Appended block " + block.getIndex() + " from " + connection.peer.getNodeId());
 	}
 
@@ -813,12 +781,16 @@ public class P2PNetwork {
 		String payload = message.getPayload().toString();
 		List<Peer> peers = JsonSerializer.jsonToPeerList(payload);
 		for (Peer peer : peers) {
-			if (node.getId().equals(peer.getNodeId()))
+			if (node.getId().equals(peer.getNodeId())) {
 				continue;
-			if (connectionsByNodeId.containsKey(peer.getNodeId()))
+			}
+			if (connectionsByNodeId.containsKey(peer.getNodeId())) {
 				continue;
-			knownPeers.putIfAbsent(peer.getNodeId(), peer);
+			}
 			connectToPeer(peer.getAddress(), peer.getPort());
+
+			knownPeers.putIfAbsent(peer.getNodeId(), peer);
+
 		}
 	}
 

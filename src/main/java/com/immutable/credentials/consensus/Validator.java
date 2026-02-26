@@ -25,11 +25,11 @@ public class Validator {
     /**
      * Create a new validator with complete identification and keys.
      * 
-     * @param validatorId the unique identifier for this validator
+     * @param validatorId   the unique identifier for this validator
      * @param validatorName the human-readable name of the validator
-     * @param publicKey the public key for signature verification
-     * @param privateKey the private key for signing blocks (kept secure)
-     * @param institution the associated university or institution
+     * @param publicKey     the public key for signature verification
+     * @param privateKey    the private key for signing blocks (kept secure)
+     * @param institution   the associated university or institution
      */
     public Validator(String validatorId, String validatorName,
             PublicKey publicKey, PrivateKey privateKey,
@@ -44,12 +44,28 @@ public class Validator {
     }
 
     /**
+     * Create a public-key-only validator (remote / verification-only).
+     * Used when building the PoA validator list from shared configuration.
+     * This validator can verify signatures but cannot sign blocks.
+     *
+     * @param validatorId   the unique identifier for this validator
+     * @param validatorName the human-readable name of the validator
+     * @param publicKey     the public key for signature verification
+     * @param institution   the associated university or institution
+     */
+    public Validator(String validatorId, String validatorName,
+            PublicKey publicKey, String institution) {
+        this(validatorId, validatorName, publicKey, null, institution);
+    }
+
+    /**
      * Sign a block with the validator's private key.
      * 
      * @param block the block to sign
      * @return the Base64-encoded signature
-     * @throws SignatureException if signing fails
-     * @throws IllegalStateException if validator lacks private key or is inactive
+     * @throws SignatureException       if signing fails
+     * @throws IllegalStateException    if validator lacks private key or is
+     *                                  inactive
      * @throws IllegalArgumentException if block is null
      */
     public String signBlock(Block block) throws SignatureException {
@@ -151,6 +167,15 @@ public class Validator {
         return this.isActive;
     }
 
+    /**
+     * Check if this validator holds a private key and can sign blocks.
+     *
+     * @return true if a private key is present, false for public-key-only validators
+     */
+    public boolean hasPrivateKey() {
+        return this.privateKey != null;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
@@ -176,8 +201,7 @@ public class Validator {
                 validatorName,
                 institution,
                 isActive,
-                (privateKey != null)
-        );
+                (privateKey != null));
 
     }
 

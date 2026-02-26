@@ -13,23 +13,15 @@ import com.immutable.credentials.model.Block;
 import com.immutable.credentials.util.JsonSerializer;
 
 /**
- * NetworkMessage represents all messages exchanged between nodes in the P2P
- * network.
+ * NetworkMessage represents all messages exchanged between nodes in the P2P network.
  * Each message has a type, sender information, timestamp, and a payload.
- * 
- * This class handles:
- * - Message creation and validation
- * - Serialization to JSON for network transmission
- * - Deserialization from JSON when receiving messages
- * - Message integrity verification
- * 
- * Message Flow:
- * 1. Sender creates NetworkMessage with type and payload
- * 2. Message is serialized to JSON string
- * 3. JSON sent over socket to peer(s)
- * 4. Receiver deserializes JSON back to NetworkMessage
- * 5. Receiver validates and processes based on message type
- * 
+ * This class handles message creation and validation, serialization to JSON for
+ * network transmission, deserialization from JSON when receiving messages, and
+ * message integrity verification.
+ * Message flow: the sender creates a NetworkMessage with a type and payload,
+ * serializes it to a JSON string, sends it over a socket to peers, and the receiver
+ * deserializes the JSON back to a NetworkMessage, then validates and processes it
+ * based on the message type.
  */
 public class NetworkMessage implements Serializable {
 
@@ -129,13 +121,13 @@ public class NetworkMessage implements Serializable {
     // Message Content
     /**
      * The actual message payload. Type depends on MessageType:
-     * - NEW_BLOCK/SEND_BLOCK: Block object serialized to JSON
-     * - SEND_CHAIN: ArrayList<Block> serialized to JSON
-     * - SEND_PEERS: ArrayList<Peer> serialized to JSON
-     * - CHAIN_HEIGHT: Integer (block count)
-     * - HANDSHAKE: Node info (nodeId, isValidator, version)
-     * - ERROR: Error message string
-     * - PING/PONG/ACK: Can be empty or simple string
+     * NEW_BLOCK and SEND_BLOCK carry a Block object serialized to JSON.
+     * SEND_CHAIN carries an ArrayList of Block objects serialized to JSON.
+     * SEND_PEERS carries an ArrayList of Peer objects serialized to JSON.
+     * CHAIN_HEIGHT carries an Integer representing the block count.
+     * HANDSHAKE carries node info such as nodeId, isValidator, and version.
+     * ERROR carries an error message string.
+     * PING, PONG, and ACK can be empty or carry a simple string.
      */
     private final Object payload;
 

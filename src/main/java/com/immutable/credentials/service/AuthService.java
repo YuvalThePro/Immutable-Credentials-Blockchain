@@ -29,67 +29,69 @@ import java.util.Properties;
  *
  * SQL schema required (run once in your Supabase SQL editor):
  *
- *   CREATE TABLE node_users (
- *       id            SERIAL PRIMARY KEY,
- *       israeli_id    VARCHAR(10)   UNIQUE NOT NULL,
- *       password_hash VARCHAR(64)   NOT NULL,
- *       node_type     VARCHAR(20)   NOT NULL CHECK (node_type IN ('VALIDATOR','UNIVERSITY','READ_ONLY')),
- *       validator_id  VARCHAR(100),
- *       institution   VARCHAR(200)  NOT NULL,
- *       port          INTEGER       NOT NULL DEFAULT 8080,
- *       data_dir      VARCHAR(500)  NOT NULL DEFAULT './data/default',
- *       display_name  VARCHAR(200),
- *       created_at    TIMESTAMP     DEFAULT NOW()
- *   );
+ * CREATE TABLE node_users (
+ * id SERIAL PRIMARY KEY,
+ * israeli_id VARCHAR(10) UNIQUE NOT NULL,
+ * password_hash VARCHAR(64) NOT NULL,
+ * node_type VARCHAR(20) NOT NULL CHECK (node_type IN
+ * ('VALIDATOR','UNIVERSITY','READ_ONLY')),
+ * validator_id VARCHAR(100),
+ * institution VARCHAR(200) NOT NULL,
+ * port INTEGER NOT NULL DEFAULT 8080,
+ * data_dir VARCHAR(500) NOT NULL DEFAULT './data/default',
+ * display_name VARCHAR(200),
+ * created_at TIMESTAMP DEFAULT NOW()
+ * );
  *
- *   CREATE TABLE validators (
- *       id            SERIAL PRIMARY KEY,
- *       validator_id  VARCHAR(100)  UNIQUE NOT NULL,
- *       institution   VARCHAR(200)  NOT NULL,
- *       public_key    TEXT          NOT NULL,
- *       is_active     BOOLEAN       DEFAULT TRUE,
- *       created_at    TIMESTAMP     DEFAULT NOW()
- *   );
+ * CREATE TABLE validators (
+ * id SERIAL PRIMARY KEY,
+ * validator_id VARCHAR(100) UNIQUE NOT NULL,
+ * institution VARCHAR(200) NOT NULL,
+ * public_key TEXT NOT NULL,
+ * is_active BOOLEAN DEFAULT TRUE,
+ * created_at TIMESTAMP DEFAULT NOW()
+ * );
  *
- *   CREATE TABLE network_settings (
- *       id                 SERIAL PRIMARY KEY,
- *       port               INTEGER NOT NULL DEFAULT 8080,
- *       max_connections    INTEGER NOT NULL DEFAULT 10,
- *       connect_timeout    BIGINT  NOT NULL DEFAULT 5000,
- *       sync_interval      BIGINT  NOT NULL DEFAULT 10000,
- *       discovery_interval BIGINT  NOT NULL DEFAULT 30000
- *   );
- *   -- Insert one row with your desired settings:
- *   INSERT INTO network_settings (port, max_connections, connect_timeout, sync_interval, discovery_interval)
- *   VALUES (8080, 10, 5000, 10000, 30000);
+ * CREATE TABLE network_settings (
+ * id SERIAL PRIMARY KEY,
+ * port INTEGER NOT NULL DEFAULT 8080,
+ * max_connections INTEGER NOT NULL DEFAULT 10,
+ * connect_timeout BIGINT NOT NULL DEFAULT 5000,
+ * sync_interval BIGINT NOT NULL DEFAULT 10000,
+ * discovery_interval BIGINT NOT NULL DEFAULT 30000
+ * );
+ * -- Insert one row with your desired settings:
+ * INSERT INTO network_settings (port, max_connections, connect_timeout,
+ * sync_interval, discovery_interval)
+ * VALUES (8080, 10, 5000, 10000, 30000);
  *
  * To insert a test user row (password hashed by Postgres sha256):
  *
- *   INSERT INTO node_users (israeli_id, password_hash, node_type, validator_id,
- *       institution, port, data_dir, display_name)
- *   VALUES (
- *       '123456789',
- *       encode(sha256('mypassword'), 'hex'),
- *       'VALIDATOR',
- *       'VALIDATOR_UNIVERSITY_A',
- *       'University A',
- *       8080,
- *       './data/node1',
- *       'University A Admin'
- *   );
+ * INSERT INTO node_users (israeli_id, password_hash, node_type, validator_id,
+ * institution, port, data_dir, display_name)
+ * VALUES (
+ * '123456789',
+ * encode(sha256('mypassword'), 'hex'),
+ * 'VALIDATOR',
+ * 'VALIDATOR_UNIVERSITY_A',
+ * 'University A',
+ * 8080,
+ * './data/node1',
+ * 'University A Admin'
+ * );
  */
 public class AuthService {
 
     private static final String CONFIG_DIR = "config";
     private static final String DB_PROPERTIES_FILE = "database.properties";
-    private static final String QUERY =
-            "SELECT display_name, node_type, validator_id, institution, port, data_dir "
+    private static final String QUERY = "SELECT display_name, node_type, validator_id, institution, port, data_dir "
             + "FROM node_users WHERE israeli_id = ? AND password_hash = ?";
 
     private final String jdbcUrl;
 
     /**
-     * Create an AuthService by loading the JDBC URL from config/database.properties.
+     * Create an AuthService by loading the JDBC URL from
+     * config/database.properties.
      *
      * @throws IOException if the properties file cannot be read
      */
@@ -111,8 +113,8 @@ public class AuthService {
      * The password is hashed with SHA-256 before the database query so it is
      * never transmitted as plain text.
      *
-     * @param id the 9-digit ID
-     * @param password  the plain-text password entered by the user
+     * @param id       the 9-digit ID
+     * @param password the plain-text password entered by the user
      * @return the NodeConfig for this user on success, or null if the credentials
      *         are invalid or no matching row exists
      * @throws SQLException if a database error occurs that is not simply a
@@ -121,12 +123,12 @@ public class AuthService {
     public NodeConfig login(String id, String password) throws SQLException {
         String hash = CryptoUtils.applySha256(password);
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
-             PreparedStatement ps = conn.prepareStatement(QUERY)) {
+                PreparedStatement ps = conn.prepareStatement(QUERY)) {
             ps.setString(1, id);
             ps.setString(2, hash);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
-                    return null; // no matching user
+                    return null;
                 }
                 return new NodeConfig(
                         id,
@@ -145,7 +147,8 @@ public class AuthService {
      * Each row is decoded into a public-key-only Validator (private key is null).
      * Rows with a missing or unparseable public key are skipped with a warning.
      *
-     * @return list of Validator objects ordered by validator_id; empty if no rows found
+     * @return list of Validator objects ordered by validator_id; empty if no rows
+     *         found
      * @throws SQLException if a database error occurs
      */
     public List<Validator> loadValidators() throws SQLException {
@@ -153,8 +156,8 @@ public class AuthService {
         String sql = "SELECT validator_id, institution, public_key "
                 + "FROM validators ORDER BY validator_id";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 String validatorId = rs.getString("validator_id");
                 String institution = rs.getString("institution");
@@ -198,7 +201,7 @@ public class AuthService {
                 + "(israeli_id, password_hash, node_type, validator_id, institution, port, data_dir, display_name) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, israeliId);
             ps.setString(2, passwordHash);
             ps.setString(3, nodeType);
@@ -228,7 +231,7 @@ public class AuthService {
                 + "ON CONFLICT (validator_id) DO UPDATE "
                 + "SET institution = EXCLUDED.institution, public_key = EXCLUDED.public_key, is_active = TRUE";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, validatorId);
             ps.setString(2, institution);
             ps.setString(3, publicKeyBase64);
@@ -247,8 +250,8 @@ public class AuthService {
         String sql = "SELECT port, max_connections, connect_timeout, sync_interval, "
                 + "discovery_interval FROM network_settings LIMIT 1";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
                 return new NetworkSettings(
                         rs.getInt("port"),
@@ -274,11 +277,11 @@ public class AuthService {
         /**
          * Create a NetworkSettings record.
          *
-         * @param port               the TCP listen port for P2P connections
-         * @param maxConnections     the maximum number of simultaneous peer connections
-         * @param connectTimeout     the connection timeout in milliseconds
-         * @param syncInterval       the chain sync interval in milliseconds
-         * @param discoveryInterval  the peer discovery interval in milliseconds
+         * @param port              the TCP listen port for P2P connections
+         * @param maxConnections    the maximum number of simultaneous peer connections
+         * @param connectTimeout    the connection timeout in milliseconds
+         * @param syncInterval      the chain sync interval in milliseconds
+         * @param discoveryInterval the peer discovery interval in milliseconds
          */
         public NetworkSettings(int port, int maxConnections, long connectTimeout,
                 long syncInterval, long discoveryInterval) {

@@ -5,6 +5,9 @@ import java.net.URL;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import com.immutable.credentials.auth.NodeConfig;
 import com.immutable.credentials.service.AdminService;
@@ -18,6 +21,7 @@ import com.immutable.credentials.service.CredentialService;
 import com.immutable.credentials.service.NetworkService;
 import com.immutable.credentials.service.NodeService;
 import com.immutable.credentials.util.ConfigLoader;
+import com.immutable.credentials.util.Logger;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -80,6 +84,8 @@ public class MainWindow extends Application {
     private BlockchainService blockchainService;
     private NetworkService networkService;
     private AdminService adminService;
+    private ScheduledExecutorService syncScheduler;
+    private static final long SYNC_INTERVAL_MS = 30_000;
 
     // ===== Auth / Session =====
     private AuthService authService;
@@ -142,6 +148,13 @@ public class MainWindow extends Application {
         this.nodeConfig = nodeConfig;
         initServices(nodeConfig);
 
+        try {
+            nodeService.startNode();
+        } catch (Exception e) {
+            showStartupError("Failed to start node:\n" + e.getMessage());
+            return;
+        }
+
         rootLayout = new BorderPane();
         rootLayout.setTop(buildMenuBar());
         rootLayout.setCenter(buildTabPane());
@@ -162,6 +175,24 @@ public class MainWindow extends Application {
         this.primaryStage.show();
 
         refreshStatusBar();
+        syncScheduler = Executors.newSingleThreadScheduledExecutor();
+        syncScheduler.scheduleAtFixedRate(() -> {
+            try {
+                List<Validator> fresh = authService.loadValidators();
+                nodeService.syncValidators(fresh);
+                Platform.runLater(() -> {
+                    refreshStatusBar();
+                    if (blockchainPanel != null)
+                        blockchainPanel.onRefresh();
+                    if (networkPanel != null)
+                        networkPanel.onRefresh();
+                });
+            } catch (Exception e) {
+                Logger.warn("Validator sync failed: " + e.getMessage());
+            }
+        }, SYNC_INTERVAL_MS, SYNC_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        Logger.log("Sync scheduler started (interval: " + SYNC_INTERVAL_MS + "ms)");
+
     }
 
     /**
@@ -172,7 +203,8 @@ public class MainWindow extends Application {
      * for validator nodes in the keys/ directory.
      *
      * @param dbConfig the node configuration returned by the cloud database login
-     * @throws RuntimeException if configuration cannot be loaded or the node cannot be constructed
+     * @throws RuntimeException if configuration cannot be loaded or the node cannot
+     *                          be constructed
      */
     private void initServices(NodeConfig dbConfig) throws RuntimeException {
         try {
@@ -453,6 +485,9 @@ public class MainWindow extends Application {
         try {
             if (nodeService != null && nodeService.isRunning()) {
                 nodeService.stopNode();
+            }
+            if (syncScheduler != null) {
+                syncScheduler.shutdownNow();
             }
         } catch (Exception e) {
             // Best-effort shutdown — log but do not block exit

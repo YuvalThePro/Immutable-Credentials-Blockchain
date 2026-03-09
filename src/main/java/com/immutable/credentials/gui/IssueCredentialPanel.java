@@ -175,7 +175,9 @@ public class IssueCredentialPanel extends VBox {
 
         try {
             credentialService.issueCredential(studentName, studentId, degree, institution, dateAwarded, credentialId);
-            showFeedback("Credential issued successfully (ID: " + credentialId + ")", true);
+            showFeedback(
+                    "Credential queued successfully (ID: " + credentialId + "). It will be sealed into the next block.",
+                    true);
             clearForm();
         } catch (Exception ex) {
             showFeedback("Failed to issue credential: " + ex.getMessage(), false);

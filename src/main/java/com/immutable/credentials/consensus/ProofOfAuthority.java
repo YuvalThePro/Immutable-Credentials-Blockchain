@@ -14,7 +14,7 @@ import java.util.Map;
  */
 public class ProofOfAuthority {
 
-    private final List<Validator> authorizedValidators;
+    private List<Validator> authorizedValidators;
     private final Map<Integer, List<Block>> pendingBlocks;
     private final Map<Integer, Map<String, Boolean>> votes;
 
@@ -438,5 +438,40 @@ public class ProofOfAuthority {
             return null;
         return activeValidators.get(blockIndex % activeValidators.size());
 
+    }
+
+    /**
+     * Replace the authorized validator list with a fresh copy from the database.
+     * Preserves the {@code isActive} flag of any validator that was already active
+     * before the sync, so that the local validator (activated at startup) remains
+     * eligible for block proposals and signing.
+     *
+     * <p>
+     * This method is thread-safe and is called periodically by the UI sync
+     * scheduler to keep the PoA engine in sync with the cloud database.
+     * </p>
+     *
+     * @param fresh the up-to-date validator list fetched from the database;
+     *              must not be {@code null} or empty
+     * @throws IllegalArgumentException if {@code fresh} is {@code null} or empty
+     */
+    public synchronized void syncValidators(List<Validator> fresh) throws IllegalArgumentException {
+        if (fresh == null || fresh.isEmpty())
+            throw new IllegalArgumentException("List of validators cannot be null or empty.");
+
+        // Preserve the active status of validators that were already active
+        // (e.g. the local validator activated at startup).
+        for (Validator incoming : fresh) {
+            for (Validator existing : authorizedValidators) {
+                if (existing.getValidatorId().equals(incoming.getValidatorId())
+                        && existing.isActive()) {
+                    incoming.activate();
+                    break;
+                }
+            }
+        }
+
+        authorizedValidators.clear();
+        authorizedValidators.addAll(fresh);
     }
 }

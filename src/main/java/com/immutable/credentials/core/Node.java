@@ -867,4 +867,17 @@ public class Node {
             return new ArrayList<>(pendingCredentials);
         }
     }
+
+    /**
+     * Synchronize the authorized validator list with a fresh copy from the
+     * database. Delegates to {@link ProofOfAuthority#syncValidators(List)}.
+     * Called periodically by the UI sync scheduler so that newly registered
+     * validators are recognized without restarting the node.
+     *
+     * @param fresh the up-to-date validator list; must not be {@code null} or empty
+     * @throws IllegalArgumentException if {@code fresh} is {@code null} or empty
+     */
+    public synchronized void syncValidators(List<Validator> fresh) {
+        proofOfAuthority.syncValidators(fresh);
+    }
 }

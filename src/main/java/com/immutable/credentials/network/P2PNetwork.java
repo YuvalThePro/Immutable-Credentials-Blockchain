@@ -83,8 +83,7 @@ public class P2PNetwork {
 		this.connectTimeoutMillis = connectTimeoutMillis;
 		this.discoveryIntervalMillis = discoveryIntervalMillis;
 		this.syncIntervalMillis = syncIntervalMillis;
-		this.connectionPool = Executors.newFixedThreadPool(maxConnections);
-		this.scheduler = Executors.newScheduledThreadPool(3);
+		// Executors are created (and re-created after stop) in start().
 	}
 
 	/**
@@ -99,11 +98,20 @@ public class P2PNetwork {
 
 	/**
 	 * Start the network listener and background workers.
+	 * Safe to call after a previous {@link #stop()} — recreates the executor
+	 * services (which are permanently terminated by stop) and reconnects to
+	 * every peer that was known before the node was stopped.
 	 */
 	public synchronized void start() throws IOException {
 		if (running) {
 			return; // Already started
 		}
+
+		// Recreate executor services — stop() permanently shuts them down and
+		// a terminated ExecutorService cannot accept new tasks.
+		connectionPool = Executors.newFixedThreadPool(maxConnections);
+		scheduler = Executors.newScheduledThreadPool(3);
+
 		serverSocket = new ServerSocket(listenPort);
 		running = true;
 
@@ -122,6 +130,15 @@ public class P2PNetwork {
 		scheduler.scheduleAtFixedRate(this::pingPeers,
 				10_000, 10_000,
 				java.util.concurrent.TimeUnit.MILLISECONDS);
+
+		// Reconnect to every peer that was known before the node was stopped.
+		// knownPeers is intentionally preserved across stop/start so this loop
+		// restores the previous topology automatically.
+		for (Peer peer : knownPeers.values()) {
+			if (!peer.getNodeId().equals(node.getId())) {
+				connectToPeer(peer.getAddress(), peer.getPort());
+			}
+		}
 
 		System.out.println("[P2PNetwork] Started on port " + listenPort + " (max connections: " + maxConnections + ")");
 	}
@@ -204,8 +221,11 @@ public class P2PNetwork {
 			return;
 		}
 
-		if (knownPeers.values().stream()
-				.anyMatch(p -> p.getAddress().equals(host) && p.getPort() == port)) {
+		// Guard against duplicate *active* connections only.
+		// Checking knownPeers here would block reconnection after a stop/start
+		// because knownPeers is intentionally preserved across restarts.
+		if (connectionsByNodeId.values().stream()
+				.anyMatch(c -> c.peer.getAddress().equals(host) && c.peer.getPort() == port)) {
 			System.out.println("[P2PNetwork] Already connected to " + host + ":" + port);
 			return;
 		}

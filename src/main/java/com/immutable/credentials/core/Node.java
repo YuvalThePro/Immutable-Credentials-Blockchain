@@ -761,11 +761,14 @@ public class Node {
     /**
      * Replace the local chain with a new list of blocks.
      * Used during chain synchronization when a peer has a longer valid chain.
+     * Rebuilds the credential index from the new chain so lookups reflect
+     * all credentials in the synchronized blockchain.
      *
      * @param newChain the replacement chain
      */
     public void replaceChain(ArrayList<Block> newChain) {
         blockchain.replaceChain(newChain);
+        credentialIndex.rebuildIndex(blockchain);
     }
 
     /**

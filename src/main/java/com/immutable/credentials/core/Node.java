@@ -93,6 +93,12 @@ public class Node {
      */
     private ScheduledExecutorService blockScheduler;
 
+    /**
+     * Serializes consensus finalization so concurrent vote handlers cannot append
+     * the same block twice.
+     */
+    private final Object consensusFinalizeLock = new Object();
+
     // ===== Configuration =====
     private final String storageFileName;
 
@@ -346,7 +352,26 @@ public class Node {
         }
 
         // If we are the current proposer, accept into our mempool
-        acceptIfCurrentProposer(credential);
+        boolean acceptedLocally = acceptIfCurrentProposer(credential);
+        if (acceptedLocally) {
+            return;
+        }
+
+        int peers = (network != null) ? network.getPeerList().size() : 0;
+        Validator proposer = proofOfAuthority.getCurrentProposer(blockchain.size());
+        String proposerId = proposer != null ? proposer.getValidatorId() : "unknown";
+
+        if (peers == 0) {
+            String msg = "Credential " + credential.getCredentialId()
+                    + " was not queued: current proposer is " + proposerId
+                    + " and this node has no connected peers.";
+            Logger.warn(msg);
+            throw new IllegalStateException(msg);
+        }
+
+        Logger.log("Credential " + credential.getCredentialId()
+                + " forwarded to network. Current proposer: " + proposerId
+                + " (" + peers + " peer" + (peers == 1 ? "" : "s") + " connected)");
     }
 
     /**
@@ -370,21 +395,21 @@ public class Node {
      *
      * @param credential the credential to potentially accept
      */
-    private void acceptIfCurrentProposer(Credential credential) {
+    private boolean acceptIfCurrentProposer(Credential credential) {
         if (!isValidator())
-            return;
+            return false;
 
         int nextIndex = blockchain.size();
         Validator currentProposer = proofOfAuthority.getCurrentProposer(nextIndex);
         if (currentProposer == null
                 || !currentProposer.getValidatorId().equals(validator.getValidatorId())) {
-            return; // not our turn
+            return false; // not our turn
         }
 
         synchronized (pendingCredentials) {
             for (Credential pending : pendingCredentials) {
                 if (pending.getCredentialId().equals(credential.getCredentialId())) {
-                    return; // already queued
+                    return true; // already queued
                 }
             }
             pendingCredentials.add(credential);
@@ -392,6 +417,7 @@ public class Node {
 
         Logger.log("Credential " + credential.getCredentialId()
                 + " accepted into mempool (" + pendingCredentials.size() + " pending)");
+        return true;
     }
 
     /**
@@ -441,6 +467,11 @@ public class Node {
             // Sign and broadcast the proposal (block is NOT added to chain yet)
             String signature = validator.signBlock(unsignedBlock);
             Block signedBlock = new Block(unsignedBlock, signature);
+
+            // Share proposal with other validators so they can vote.
+            if (network != null) {
+                network.broadcastProposedBlock(signedBlock);
+            }
 
             handleProposedBlock(signedBlock);
 
@@ -547,29 +578,55 @@ public class Node {
      * @param blockHash  the block hash to check consensus for
      */
     private void checkAndFinalizeConsensus(int blockIndex, String blockHash) {
-        if (!proofOfAuthority.hasConsensus(blockIndex, blockHash)) {
-            return;
+        synchronized (consensusFinalizeLock) {
+            if (!proofOfAuthority.hasConsensus(blockIndex, blockHash)) {
+                return;
+            }
+
+            Block consensusBlock = proofOfAuthority.getConsensusBlock(blockIndex);
+            if (consensusBlock == null) {
+                return;
+            }
+
+            Block latest = blockchain.getLatestBlock();
+            int expectedIndex = blockchain.size();
+
+            // Already finalized locally (possibly by another vote-handler thread).
+            if (latest != null && latest.getHash() != null
+                    && latest.getHash().equals(consensusBlock.getHash())) {
+                proofOfAuthority.clearPendingBlocks(blockIndex);
+                return;
+            }
+
+            // Only append the exact next block; ignore stale/out-of-order finalize calls.
+            if (consensusBlock.getIndex() != expectedIndex) {
+                if (consensusBlock.getIndex() < expectedIndex) {
+                    proofOfAuthority.clearPendingBlocks(blockIndex);
+                }
+                return;
+            }
+
+            String expectedPreviousHash = (latest != null) ? latest.getHash() : "0";
+            if (consensusBlock.getPreviousHash() == null
+                    || !consensusBlock.getPreviousHash().equals(expectedPreviousHash)) {
+                return;
+            }
+
+            // Finalize: add to chain and update index
+            blockchain.addBlock(consensusBlock);
+            credentialIndex.addCredentials(consensusBlock.getCredentials());
+
+            // Propagate finalized block to validators and non-validator peers.
+            if (network != null) {
+                network.broadcastBlock(consensusBlock);
+            }
+
+            // Clean up PoA pending state
+            proofOfAuthority.clearPendingBlocks(blockIndex);
+
+            Logger.log("Block #" + blockIndex + " finalized via consensus ("
+                    + consensusBlock.getCredentials().size() + " credentials)");
         }
-
-        // Prevent double-finalization (block may already have been added)
-        if (blockIndex < blockchain.size()) {
-            return;
-        }
-
-        Block consensusBlock = proofOfAuthority.getConsensusBlock(blockIndex);
-        if (consensusBlock == null) {
-            return;
-        }
-
-        // Finalize: add to chain and update index
-        blockchain.addBlock(consensusBlock);
-        credentialIndex.addCredentials(consensusBlock.getCredentials());
-
-        // Clean up PoA pending state
-        proofOfAuthority.clearPendingBlocks(blockIndex);
-
-        Logger.log("Block #" + blockIndex + " finalized via consensus (" +
-                consensusBlock.getCredentials().size() + " credentials)");
     }
 
     /**

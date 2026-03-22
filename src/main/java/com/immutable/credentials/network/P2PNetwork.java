@@ -398,7 +398,10 @@ public class P2PNetwork {
 		JSONObject payload = new JSONObject();
 		payload.put("blockIndex", blockIndex);
 		payload.put("blockHash", blockHash);
-		payload.put("voterId", node.getId());
+		String voterId = node.getValidator() != null
+				? node.getValidator().getValidatorId()
+				: node.getId();
+		payload.put("voterId", voterId);
 		payload.put("approve", approve);
 		NetworkMessage message = new NetworkMessage(MessageType.BLOCK_VOTE, node.getId(), payload);
 		seenMessageIds.add(message.getMessageId());

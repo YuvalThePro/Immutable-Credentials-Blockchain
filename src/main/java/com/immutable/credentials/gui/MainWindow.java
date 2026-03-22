@@ -150,6 +150,8 @@ public class MainWindow extends Application {
 
         try {
             nodeService.startNode();
+            markNodeOnlineInDatabase();
+            tryBootstrapNetwork();
         } catch (Exception e) {
             showStartupError("Failed to start node:\n" + e.getMessage());
             return;
@@ -213,6 +215,7 @@ public class MainWindow extends Application {
             String dataDir = dbConfig.getDataDir();
             String storageFile = dataDir + "/blockchain.jsonl";
             String address = "localhost";
+            String runtimeNodeId = String.valueOf(dbConfig.getNodeUserId());
 
             // Load the shared validator list from the cloud database.
             List<Validator> validators = ConfigLoader.loadValidatorList(authService);
@@ -228,7 +231,7 @@ public class MainWindow extends Application {
                         validatorId, dbConfig.getInstitution(), validators, authService);
                 localValidator.activate();
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
-                node = new Node(validatorId, address, port, localValidator, poa, storageFile);
+                node = new Node(runtimeNodeId, address, port, localValidator, poa, storageFile);
 
             } else {
                 if (validators.isEmpty()) {
@@ -238,9 +241,9 @@ public class MainWindow extends Application {
                 }
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
                 if ("university".equals(nodeType)) {
-                    node = new Node(nodeConfig.getId(), address, port, poa, storageFile, true);
+                    node = new Node(runtimeNodeId, address, port, poa, storageFile, true);
                 } else {
-                    node = new Node(nodeConfig.getId(), address, port, poa, storageFile);
+                    node = new Node(runtimeNodeId, address, port, poa, storageFile);
                 }
             }
 
@@ -322,7 +325,7 @@ public class MainWindow extends Application {
         issuePanel = new IssueCredentialPanel(credentialService, nodeService);
         verifyPanel = new VerifyCredentialPanel(credentialService);
         blockchainPanel = new BlockchainViewerPanel(blockchainService);
-        networkPanel = new NetworkStatusPanel(networkService, nodeService);
+        networkPanel = new NetworkStatusPanel(networkService, nodeService, getDisplayNodeId());
 
         Tab issueTab = new Tab("Issue Credential", issuePanel);
         Tab verifyTab = new Tab("Verify Credential", verifyPanel);
@@ -381,7 +384,7 @@ public class MainWindow extends Application {
     private void refreshStatusBar() {
         if (nodeService == null)
             return;
-        String nodeId = nodeService.isRunning() ? nodeService.getNodeId() : "-";
+        String nodeId = nodeService.isRunning() ? getDisplayNodeId() : "-";
         String nodeType = nodeService.isValidator() ? "Validator"
                 : (nodeService.isUniversity() ? "University" : "Read-Only");
         statusNodeLabel.setText("Node: " + nodeId + " (" + nodeType + ")");
@@ -397,6 +400,8 @@ public class MainWindow extends Application {
     private void onStartNode() {
         try {
             nodeService.startNode();
+            markNodeOnlineInDatabase();
+            tryBootstrapNetwork();
             updateIssueTabVisibility();
             refreshStatusBar();
         } catch (Exception e) {
@@ -412,6 +417,7 @@ public class MainWindow extends Application {
     private void onStopNode() {
         try {
             nodeService.stopNode();
+            markNodeOfflineInDatabase();
             updateIssueTabVisibility();
             refreshStatusBar();
         } catch (Exception e) {
@@ -485,6 +491,7 @@ public class MainWindow extends Application {
         try {
             if (nodeService != null && nodeService.isRunning()) {
                 nodeService.stopNode();
+                markNodeOfflineInDatabase();
             }
             if (syncScheduler != null) {
                 syncScheduler.shutdownNow();
@@ -541,5 +548,63 @@ public class MainWindow extends Application {
         if (stylesheet != null) {
             scene.getStylesheets().add(stylesheet.toExternalForm());
         }
+    }
+
+    /**
+     * Attempt startup bootstrap by connecting to one active validator endpoint.
+     * This is best-effort and must not block UI startup on failure.
+     */
+    private void tryBootstrapNetwork() {
+        if (authService == null || networkService == null) {
+            return;
+        }
+        try {
+            boolean connected = networkService.bootstrap(authService.loadActiveValidatorEndpoints());
+            if (!connected) {
+                Logger.warn("Startup bootstrap did not connect to any validator endpoint.");
+            }
+        } catch (Exception e) {
+            Logger.warn("Startup bootstrap failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Best-effort DB presence update when this node starts.
+     */
+    private void markNodeOnlineInDatabase() {
+        if (authService == null || nodeConfig == null || nodeService == null) {
+            return;
+        }
+        try {
+            authService.markNodeOnline(nodeConfig.getNodeUserId(), nodeService.getNodeAddress(),
+                    nodeService.getNodePort());
+        } catch (Exception e) {
+            Logger.warn("Failed to mark node online in database: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Best-effort DB presence update when this node stops.
+     */
+    private void markNodeOfflineInDatabase() {
+        if (authService == null || nodeConfig == null) {
+            return;
+        }
+        try {
+            authService.markNodeOffline(nodeConfig.getNodeUserId());
+        } catch (Exception e) {
+            Logger.warn("Failed to mark node offline in database: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Returns a stable UI display ID for this node (DB row id), independent of
+     * runtime network identity used by consensus/P2P internals.
+     */
+    private String getDisplayNodeId() {
+        if (nodeConfig == null) {
+            return "-";
+        }
+        return String.valueOf(nodeConfig.getNodeUserId());
     }
 }

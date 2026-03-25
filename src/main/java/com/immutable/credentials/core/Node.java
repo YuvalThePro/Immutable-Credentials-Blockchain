@@ -546,6 +546,11 @@ public class Node {
             throw new IllegalArgumentException("Voter ID cannot be null");
         }
 
+        // Only validators participate in consensus finalization
+        if (!isValidator()) {
+            return;
+        }
+
         // Look up the voter
         Validator voter = proofOfAuthority.getValidatorById(voterId);
         if (voter == null) {
@@ -612,8 +617,10 @@ public class Node {
                 return;
             }
 
-            // Finalize: add to chain and update index
+            Logger.log("[DEBUG] checkAndFinalizeConsensus: About to add block idx=" + consensusBlock.getIndex()
+                    + ", hash=" + consensusBlock.getHash() + ", chainHeight(before)=" + blockchain.size());
             blockchain.addBlock(consensusBlock);
+            Logger.log("[DEBUG] checkAndFinalizeConsensus: Chain height(after)=" + blockchain.size());
             credentialIndex.addCredentials(consensusBlock.getCredentials());
 
             // Propagate finalized block to validators and non-validator peers.
@@ -639,22 +646,41 @@ public class Node {
      */
     public boolean processIncomingBlock(Block block) {
         if (block == null) {
+            Logger.warn("[DEBUG] processIncomingBlock: Block is null");
             throw new IllegalArgumentException("Block cannot be null");
         }
 
-        Block previousBlock = blockchain.getBlock(block.getIndex() - 1);
+        synchronized (consensusFinalizeLock) {
+            Logger.log("[DEBUG] processIncomingBlock called: blockIdx=" + block.getIndex()
+                    + ", hash=" + block.getHash() + ", chainHeight(before)=" + blockchain.size());
 
-        if (!proofOfAuthority.enforceConsensusRules(block, previousBlock)) {
-            Logger.warn("Rejected block #" + block.getIndex() +
-                    " from " + block.getValidatorId() + ": consensus rules not satisfied");
-            return false;
+            Block existing = blockchain.getBlock(block.getIndex());
+            if (existing != null && existing.getHash() != null && existing.getHash().equals(block.getHash())) {
+                Logger.warn("[DEBUG] processIncomingBlock: Duplicate detected idx=" + block.getIndex() + ", hash="
+                        + block.getHash() + ", skipping add. Chain height=" + blockchain.size());
+                return false;
+            }
+
+            Block previousBlock = blockchain.getBlock(block.getIndex() - 1);
+
+            boolean consensusOk = proofOfAuthority.enforceConsensusRules(block, previousBlock);
+            if (!consensusOk) {
+                Logger.warn("Rejected block #" + block.getIndex() +
+                        " from " + block.getValidatorId() + ": consensus rules not satisfied");
+                return false;
+            }
+
+            Logger.log("[DEBUG] processIncomingBlock: About to add block idx=" + block.getIndex() + ", hash="
+                    + block.getHash() + ", chainHeight(before)=" + blockchain.size());
+
+            blockchain.addBlock(block);
+            credentialIndex.addCredentials(block.getCredentials());
+
+            Logger.log("[DEBUG] processIncomingBlock: Chain height(after)=" + blockchain.size());
+            Logger.log("Accepted block #" + block.getIndex() + " from " + block.getValidatorId());
+
+            return true;
         }
-
-        blockchain.addBlock(block);
-        credentialIndex.addCredentials(block.getCredentials());
-
-        Logger.log("Accepted block #" + block.getIndex() + " from " + block.getValidatorId());
-        return true;
     }
 
     /**
@@ -850,6 +876,12 @@ public class Node {
      * @param block the validated block to append
      */
     public void addBlockToChain(Block block) {
+        Block existing = blockchain.getBlock(block.getIndex());
+        if (existing != null && existing.getHash() != null && existing.getHash().equals(block.getHash())) {
+            Logger.warn("Block #" + block.getIndex() + " already exists in the local chain. Skipping addition.");
+            return;
+        }
+
         blockchain.addBlock(block);
         credentialIndex.addCredentials(block.getCredentials());
     }

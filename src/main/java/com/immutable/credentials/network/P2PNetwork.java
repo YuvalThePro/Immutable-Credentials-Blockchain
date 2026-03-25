@@ -650,10 +650,11 @@ public class P2PNetwork {
 		Validator validator = node.getValidatorById(block.getValidatorId());
 		if (validator == null)
 			return false;
+
 		if (!node.validateBlockSignature(block, validator.getPublicKey()))
 			return false;
-		node.addBlockToChain(block);
-		return true;
+
+		return node.processIncomingBlock(block);
 	}
 
 	/**

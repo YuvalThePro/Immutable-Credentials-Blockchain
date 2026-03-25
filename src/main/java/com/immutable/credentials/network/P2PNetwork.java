@@ -796,6 +796,7 @@ public class P2PNetwork {
 		System.out.println("[P2PNetwork] Peer disconnected gracefully: " + connection.peer.getNodeId());
 		connection.close();
 		connection.peer.setConnected(false);
+		connectionsByNodeId.remove(connection.peer.getNodeId());
 	}
 
 	/**
@@ -811,10 +812,12 @@ public class P2PNetwork {
 			if (connectionsByNodeId.containsKey(peer.getNodeId())) {
 				continue;
 			}
-			connectToPeer(peer.getAddress(), peer.getPort());
 
-			knownPeers.putIfAbsent(peer.getNodeId(), peer);
-
+			// Only attempt to connect to newly discovered peers to avoid connection spam to offline nodes
+			if (!knownPeers.containsKey(peer.getNodeId())) {
+				knownPeers.put(peer.getNodeId(), peer);
+				connectToPeer(peer.getAddress(), peer.getPort());
+			}
 		}
 	}
 
@@ -837,6 +840,8 @@ public class P2PNetwork {
 			System.err.println("[P2PNetwork] Failed to send message to "
 					+ connection.peer.getNodeId() + ": " + e.getMessage());
 			connection.close();
+			connectionsByNodeId.remove(connection.peer.getNodeId());
+			connection.peer.setConnected(false);
 		}
 	}
 

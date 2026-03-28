@@ -9,10 +9,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.immutable.credentials.auth.CredentialValidator;
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.model.Block;
 import com.immutable.credentials.model.Credential;
+import com.immutable.credentials.model.Institution;
 import com.immutable.credentials.network.P2PNetwork;
 import com.immutable.credentials.storage.BlockchainStorage;
 import com.immutable.credentials.storage.CredentialIndex;
@@ -65,7 +67,7 @@ public class Node {
      * Use isValidator() or isUniversity() to check node type.
      */
     private final Validator validator;
-
+    private final CredentialValidator credentialValidator;
     // ===== Core Components =====
     private Blockchain blockchain;
     private P2PNetwork network;
@@ -147,7 +149,7 @@ public class Node {
      */
     public Node(String nodeId, String address, int port,
             Validator validator, ProofOfAuthority proofOfAuthority,
-            String storageFileName) {
+            String storageFileName, CredentialValidator credentialValidator) {
 
         validateCommonNodeArgs(nodeId, address, port, proofOfAuthority, storageFileName);
         if (validator == null) {
@@ -166,6 +168,7 @@ public class Node {
         this.credentialIndex = new CredentialIndex();
         this.pendingCredentials = new ArrayList<>();
         this.running = false;
+        this.credentialValidator = credentialValidator;
     }
 
     /**
@@ -195,6 +198,7 @@ public class Node {
         this.credentialIndex = new CredentialIndex();
         this.pendingCredentials = new ArrayList<>();
         this.running = false;
+        this.credentialValidator = null;
     }
 
     /**
@@ -232,6 +236,7 @@ public class Node {
         this.credentialIndex = new CredentialIndex();
         this.pendingCredentials = new ArrayList<>();
         this.running = false;
+        this.credentialValidator = new CredentialValidator();
     }
 
     /**
@@ -396,27 +401,34 @@ public class Node {
      * @param credential the credential to potentially accept
      */
     private boolean acceptIfCurrentProposer(Credential credential) {
-        if (!isValidator())
+        if (!isValidator()) {
             return false;
+        }
+
+        if (!credentialValidator.isCredentialValid(credential)) {
+            Logger.warn("Rejected: Credential " + credential.getCredentialId() +
+                    " failed signature verification or unknown institution.");
+            return false;
+        }
 
         int nextIndex = blockchain.size();
         Validator currentProposer = proofOfAuthority.getCurrentProposer(nextIndex);
         if (currentProposer == null
                 || !currentProposer.getValidatorId().equals(validator.getValidatorId())) {
-            return false; // not our turn
+            return false;
         }
 
         synchronized (pendingCredentials) {
             for (Credential pending : pendingCredentials) {
                 if (pending.getCredentialId().equals(credential.getCredentialId())) {
-                    return true; // already queued
+                    return true;
                 }
             }
             pendingCredentials.add(credential);
         }
 
         Logger.log("Credential " + credential.getCredentialId()
-                + " accepted into mempool (" + pendingCredentials.size() + " pending)");
+                + " verified and accepted into mempool (" + pendingCredentials.size() + " pending)");
         return true;
     }
 
@@ -968,5 +980,20 @@ public class Node {
      */
     public synchronized void syncValidators(List<Validator> fresh) {
         proofOfAuthority.syncValidators(fresh);
+    }
+
+    /**
+     * Synchronize the authorized institutions list with a fresh copy from the
+     * database. Delegates to {@link ProofOfAuthority#syncInstitutions(List)}.
+     * Called periodically by the UI sync scheduler so that newly registered
+     * institutions are recognized without restarting the node.
+     *
+     * @param fresh the up-to-date institution list; must not be {@code null} or
+     *              empty
+     * @throws IllegalArgumentException if {@code fresh} is {@code null} or empty
+     */
+
+    public synchronized void syncInstitutions(List<Institution> fresh) {
+        credentialValidator.syncInstitutions(fresh);
     }
 }

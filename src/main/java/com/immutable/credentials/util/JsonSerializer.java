@@ -112,17 +112,10 @@ public class JsonSerializer {
                 JSONArray credArray = json.getJSONArray("credentials");
                 for (int i = 0; i < credArray.length(); i++) {
                     JSONObject credJson = credArray.getJSONObject(i);
-
-                    String studentName = credJson.optString("studentName", "");
-                    long dateMillis = credJson.getLong("dateAwarded");
-                    Date dateAwarded = new Date(dateMillis);
-                    String degree = credJson.optString("degree", "");
-                    String institution = credJson.optString("institution", "");
-                    String studentId = credJson.optString("studentId", "");
-                    String credentialId = credJson.optString("credentialId", "");
-
-                    credentials.add(
-                            new Credential(studentName, dateAwarded, degree, institution, studentId, credentialId));
+                    Credential cred = jsonToCredential(credJson.toString());
+                    if (cred != null) {
+                        credentials.add(cred);
+                    }
                 }
             }
 
@@ -264,6 +257,10 @@ public class JsonSerializer {
         json.put("institution", sanitizeString(credential.getInstitution()));
         json.put("studentId", sanitizeString(credential.getStudentId()));
         json.put("credentialId", sanitizeString(credential.getCredentialId()));
+
+        String sig = credential.getSignature();
+        json.put("signature", sig != null ? sanitizeString(sig) : JSONObject.NULL);
+
         return json.toString();
     }
 
@@ -287,7 +284,16 @@ public class JsonSerializer {
             String institution = json.optString("institution", "");
             String studentId = json.optString("studentId", "");
             String credentialId = json.optString("credentialId", "");
-            return new Credential(studentName, dateAwarded, degree, institution, studentId, credentialId);
+
+            String signature = json.isNull("signature") ? null : json.getString("signature");
+
+            Credential cred = new Credential(studentName, dateAwarded, degree, institution, studentId, credentialId);
+
+            if (signature != null) {
+                return new Credential(cred, signature);
+            }
+
+            return null;
         } catch (JSONException e) {
             return null;
         }

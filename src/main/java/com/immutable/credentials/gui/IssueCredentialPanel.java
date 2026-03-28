@@ -1,10 +1,13 @@
 package com.immutable.credentials.gui;
 
+import java.security.PrivateKey;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import com.immutable.credentials.service.AuthService;
 import com.immutable.credentials.service.CredentialService;
 import com.immutable.credentials.service.NodeService;
+import com.immutable.credentials.util.ConfigLoader;
 
 import javafx.scene.control.Button;
 import javafx.scene.control.DatePicker;
@@ -44,7 +47,7 @@ public class IssueCredentialPanel extends VBox {
     // ===== Services =====
     private final CredentialService credentialService;
     private final NodeService nodeService;
-
+    private final AuthService authService;
     // ===== Form Fields =====
     private TextField studentNameField;
     private TextField studentIdField;
@@ -68,9 +71,10 @@ public class IssueCredentialPanel extends VBox {
      *                          must not be {@code null}
      * @throws IllegalArgumentException if either service is {@code null}
      */
-    public IssueCredentialPanel(CredentialService credentialService, NodeService nodeService) {
+    public IssueCredentialPanel(CredentialService credentialService, NodeService nodeService, AuthService authService) {
         this.credentialService = credentialService;
         this.nodeService = nodeService;
+        this.authService = authService;
         getChildren().add(buildForm());
     }
 
@@ -165,22 +169,30 @@ public class IssueCredentialPanel extends VBox {
             showFeedback("Please fill in all required fields.", false);
             return;
         }
-
-        String studentName = studentNameField.getText().trim();
-        String studentId = studentIdField.getText().trim();
-        String degree = degreeField.getText().trim();
+        String universityId = nodeService.getNodeId();
         String institution = institutionField.getText().trim();
-        LocalDate dateAwarded = dateAwardedPicker.getValue();
-        String credentialId = UUID.randomUUID().toString();
 
         try {
-            credentialService.issueCredential(studentName, studentId, degree, institution, dateAwarded, credentialId);
-            showFeedback(
-                    "Credential queued successfully (ID: " + credentialId + "). It will be sealed into the next block.",
-                    true);
+            java.security.PrivateKey uniPrivateKey = ConfigLoader.loadLocalUniversityKey(
+                    universityId,
+                    institution,
+                    authService);
+
+            credentialService.issueCredential(
+                    studentNameField.getText().trim(),
+                    studentIdField.getText().trim(),
+                    degreeField.getText().trim(),
+                    institution,
+                    dateAwardedPicker.getValue(),
+                    UUID.randomUUID().toString(),
+                    uniPrivateKey);
+
+            showFeedback("Success! Credential signed and sent to blockchain.", true);
             clearForm();
+
         } catch (Exception ex) {
-            showFeedback("Failed to issue credential: " + ex.getMessage(), false);
+            showFeedback("Error signing credential: " + ex.getMessage(), false);
+            ex.printStackTrace();
         }
     }
 

@@ -84,7 +84,8 @@ public class Blockchain {
     public void addBlock(Block block) {
         int idx = chain.size();
         String hash = (block != null) ? block.getHash() : "null";
-        com.immutable.credentials.util.Logger.log("[DEBUG] Blockchain.addBlock: Adding block at idx=" + idx + ", hash=" + hash);
+        com.immutable.credentials.util.Logger
+                .log("[DEBUG] Blockchain.addBlock: Adding block at idx=" + idx + ", hash=" + hash);
         this.chain.add(block);
     }
 

@@ -3,6 +3,7 @@ package com.immutable.credentials.service;
 import com.immutable.credentials.auth.NodeConfig;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.model.Institution;
 import com.immutable.credentials.util.Logger;
 
 import java.io.FileInputStream;
@@ -162,15 +163,15 @@ public class AuthService {
      */
     public List<Validator> loadValidators() throws SQLException {
         List<Validator> result = new ArrayList<>();
-        String sql = "SELECT v.validator_id, v.institution, v.public_key, "
-                + "CASE WHEN EXISTS ("
-                + "SELECT 1 FROM node_users n "
-                + "WHERE n.validator_id = v.validator_id "
-                + "AND n.node_type = 'VALIDATOR' "
-                + "AND n.is_active = TRUE"
-                + ") THEN TRUE ELSE FALSE END AS online "
+        String sql = "SELECT v.validator_id, v.institution, v.public_key, TRUE AS online "
                 + "FROM validators v "
                 + "WHERE v.is_active = TRUE "
+                + "AND EXISTS ("
+                + "    SELECT 1 FROM node_users n "
+                + "    WHERE n.validator_id = v.validator_id "
+                + "    AND n.node_type = 'VALIDATOR' "
+                + "    AND n.is_active = TRUE"
+                + ") "
                 + "ORDER BY v.validator_id";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
                 PreparedStatement ps = conn.prepareStatement(sql);
@@ -198,6 +199,28 @@ public class AuthService {
             }
         }
         return result;
+    }
+
+    public List<Institution> getAllInstitutions() throws SQLException {
+        List<Institution> list = new ArrayList<>();
+        String sql = "SELECT id, institution, public_key FROM institutions WHERE public_key IS NOT NULL";
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                String name = rs.getString("institution");
+                String pubKey = rs.getString("public_key");
+
+                if (pubKey != null && pubKey.length() > 20) {
+                    String shortKey = pubKey.substring(0, 10) + "..." + pubKey.substring(pubKey.length() - 10);
+                    Logger.log("[DB-CHECK] Institution: " + name + " | Key in DB: [" + shortKey + "]");
+                }
+
+                list.add(new Institution(rs.getInt("id"), name, pubKey));
+            }
+        }
+        return list;
     }
 
     /**
@@ -324,6 +347,28 @@ public class AuthService {
             ps.setString(2, institution);
             ps.setString(3, publicKeyBase64);
             ps.executeUpdate();
+        }
+    }
+
+    public void upsertUniversityPublicKey(int universityId, String institution, String publicKeyBase64)
+            throws SQLException {
+        String sql = "UPDATE institutions SET public_key = ?, institution = ? " +
+                "WHERE id = ? AND (public_key IS NULL OR public_key = '')";
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, publicKeyBase64);
+            pstmt.setString(2, institution);
+            pstmt.setInt(3, universityId);
+
+            int rowsAffected = pstmt.executeUpdate();
+
+            if (rowsAffected == 0) {
+                Logger.warn("Security Alert: Key overwrite attempt or invalid ID: " + universityId);
+                throw new SQLException("Cannot overwrite existing public key or ID not found.");
+            }
+
+            Logger.log("Public key locked for institution ID: " + universityId);
         }
     }
 

@@ -1,6 +1,7 @@
 package com.immutable.credentials.crypto;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -8,6 +9,8 @@ import java.security.*;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
+
+import com.immutable.credentials.util.Logger;
 
 /**
  * Cryptographic utilities for SHA-256 hashing and RSA signatures.
@@ -84,14 +87,18 @@ public class CryptoUtils {
      * @param publicKey    the public key for verification
      * @return true if the signature is valid, false otherwise
      */
-    public static boolean verifySignature(String data, String signatureStr, PublicKey publicKey) {
+    public static boolean verifySignature(String data, String signature, PublicKey publicKey) {
         try {
-            Signature signature = Signature.getInstance("SHA256withRSA");
-            signature.initVerify(publicKey);
-            signature.update(data.getBytes("UTF-8"));
-            byte[] signatureBytes = Base64.getDecoder().decode(signatureStr);
-            return signature.verify(signatureBytes);
+            signature = signature.trim().replace("\n", "").replace("\r", "");
+
+            byte[] signatureBytes = Base64.getDecoder().decode(signature);
+            Signature sig = Signature.getInstance("SHA256withRSA");
+            sig.initVerify(publicKey);
+            sig.update(data.getBytes(StandardCharsets.UTF_8));
+
+            return sig.verify(signatureBytes);
         } catch (Exception e) {
+            Logger.error("Signature verification error: " + e.getMessage());
             return false;
         }
     }

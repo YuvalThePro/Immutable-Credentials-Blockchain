@@ -9,12 +9,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.immutable.credentials.auth.CredentialValidator;
 import com.immutable.credentials.auth.NodeConfig;
 import com.immutable.credentials.service.AdminService;
 import com.immutable.credentials.service.AuthService;
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.core.Node;
+import com.immutable.credentials.model.Institution;
 import com.immutable.credentials.network.P2PNetwork;
 import com.immutable.credentials.service.BlockchainService;
 import com.immutable.credentials.service.CredentialService;
@@ -181,7 +183,9 @@ public class MainWindow extends Application {
         syncScheduler.scheduleAtFixedRate(() -> {
             try {
                 List<Validator> fresh = authService.loadValidators();
+                List<Institution> freshInstitutions = authService.getAllInstitutions();
                 nodeService.syncValidators(fresh);
+                nodeService.syncInstitutions(freshInstitutions);
                 Platform.runLater(() -> {
                     refreshStatusBar();
                     if (blockchainPanel != null)
@@ -219,7 +223,9 @@ public class MainWindow extends Application {
 
             // Load the shared validator list from the cloud database.
             List<Validator> validators = ConfigLoader.loadValidatorList(authService);
-
+            List<Institution> institutions = ConfigLoader.loadInstitutionList(authService);
+            CredentialValidator credentialValidator = new CredentialValidator();
+            credentialValidator.addInstitutions(institutions);
             Node node;
             if ("validator".equals(nodeType)) {
                 String validatorId = dbConfig.getValidatorId();
@@ -231,7 +237,7 @@ public class MainWindow extends Application {
                         validatorId, dbConfig.getInstitution(), validators, authService);
                 localValidator.activate();
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
-                node = new Node(runtimeNodeId, address, port, localValidator, poa, storageFile);
+                node = new Node(runtimeNodeId, address, port, localValidator, poa, storageFile, credentialValidator);
 
             } else {
                 if (validators.isEmpty()) {
@@ -241,6 +247,8 @@ public class MainWindow extends Application {
                 }
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
                 if ("university".equals(nodeType)) {
+                    ConfigLoader.loadLocalUniversityKey(runtimeNodeId, dbConfig.getInstitution(), authService);
+
                     node = new Node(runtimeNodeId, address, port, poa, storageFile, true);
                 } else {
                     node = new Node(runtimeNodeId, address, port, poa, storageFile);
@@ -322,7 +330,7 @@ public class MainWindow extends Application {
      * @return a configured TabPane with all panels attached
      */
     private TabPane buildTabPane() {
-        issuePanel = new IssueCredentialPanel(credentialService, nodeService);
+        issuePanel = new IssueCredentialPanel(credentialService, nodeService, authService);
         verifyPanel = new VerifyCredentialPanel(credentialService);
         blockchainPanel = new BlockchainViewerPanel(blockchainService);
         networkPanel = new NetworkStatusPanel(networkService, nodeService, getDisplayNodeId());

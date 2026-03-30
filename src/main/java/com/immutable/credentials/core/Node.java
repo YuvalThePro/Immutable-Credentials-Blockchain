@@ -861,9 +861,15 @@ public class Node {
      *
      * @param newChain the replacement chain
      */
-    public void replaceChain(ArrayList<Block> newChain) {
+    public synchronized boolean replaceChain(ArrayList<Block> newChain) {
+        if (newChain.size() <= blockchain.size()) {
+            return false;
+        }
+
         blockchain.replaceChain(newChain);
         credentialIndex.rebuildIndex(blockchain);
+        Logger.log("Chain successfully replaced. New height: " + blockchain.size());
+        return true;
     }
 
     /**

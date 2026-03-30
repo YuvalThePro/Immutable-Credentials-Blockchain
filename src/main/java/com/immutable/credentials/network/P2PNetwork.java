@@ -18,6 +18,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import com.immutable.credentials.util.Logger;
 
 import org.json.JSONArray;
@@ -54,7 +56,7 @@ public class P2PNetwork {
 	private final ConcurrentMap<String, PeerConnection> connectionsByNodeId = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Peer> knownPeers = new ConcurrentHashMap<>();
 	private final Set<String> seenMessageIds = ConcurrentHashMap.newKeySet();
-
+	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 	private volatile boolean running;
 
 	// ===== Configuration =====
@@ -661,14 +663,18 @@ public class P2PNetwork {
 	 * Handle a SEND_CHAIN message.
 	 */
 	private void handleChainMessage(NetworkMessage message, PeerConnection connection) {
-		String payload = message.getPayload().toString();
+		try {
+			String payload = message.getPayload().toString();
 
-		Blockchain incomingChain = new Blockchain(JsonSerializer.jsonToChain(payload));
-		if (!node.validateIncomingChain(incomingChain))
-			return;
-		if (incomingChain.getChain().size() <= node.getChainHeight())
-			return;
-		node.replaceChain(incomingChain.getChain());
+			Blockchain incomingChain = new Blockchain(JsonSerializer.jsonToChain(payload));
+			if (!node.validateIncomingChain(incomingChain))
+				return;
+			if (incomingChain.getChain().size() <= node.getChainHeight())
+				return;
+			node.replaceChain(incomingChain.getChain());
+		} finally {
+			isSyncing.set(false);
+		}
 	}
 
 	/**
@@ -754,12 +760,15 @@ public class P2PNetwork {
 		JSONObject payload = (JSONObject) message.getPayload();
 		int peerHeight = payload.optInt("currentHeight", 0);
 		if (peerHeight > node.getChainHeight()) {
-			JSONObject requestPayload = new JSONObject();
-			requestPayload.put("currentHeight", node.getChainHeight());
-			NetworkMessage request = new NetworkMessage(MessageType.REQUEST_CHAIN, node.getId(), requestPayload);
-			sendMessage(connection, request);
-			System.out.println("[P2PNetwork] Peer " + connection.peer.getNodeId() + " is ahead (" + peerHeight + " vs "
-					+ node.getChainHeight() + "), requesting chain");
+			if (isSyncing.compareAndSet(false, true)) {
+				JSONObject requestPayload = new JSONObject();
+				requestPayload.put("currentHeight", node.getChainHeight());
+				NetworkMessage request = new NetworkMessage(MessageType.REQUEST_CHAIN, node.getId(), requestPayload);
+				sendMessage(connection, request);
+				System.out.println(
+						"[P2PNetwork] Peer " + connection.peer.getNodeId() + " is ahead (" + peerHeight + " vs "
+								+ node.getChainHeight() + "), requesting chain");
+			}
 		} else if (peerHeight < node.getChainHeight()) {
 			// We're ahead — push our chain to the lagging peer so they can sync
 			String chainJson = JsonSerializer.chainToJson(node.getChain());
@@ -813,7 +822,8 @@ public class P2PNetwork {
 				continue;
 			}
 
-			// Only attempt to connect to newly discovered peers to avoid connection spam to offline nodes
+			// Only attempt to connect to newly discovered peers to avoid connection spam to
+			// offline nodes
 			if (!knownPeers.containsKey(peer.getNodeId())) {
 				knownPeers.put(peer.getNodeId(), peer);
 				connectToPeer(peer.getAddress(), peer.getPort());

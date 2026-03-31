@@ -1,7 +1,9 @@
 package com.immutable.credentials.util;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -65,6 +67,13 @@ public class JsonSerializer {
                 json.put("credentials", new JSONArray());
             }
 
+            // Serialize voter attestations
+            JSONObject attestationsJson = new JSONObject();
+            for (Map.Entry<String, String> entry : block.getVoterAttestations().entrySet()) {
+                attestationsJson.put(entry.getKey(), entry.getValue());
+            }
+            json.put("voterAttestations", attestationsJson);
+
             return json.toString();
 
         } catch (JSONException e) {
@@ -118,8 +127,18 @@ public class JsonSerializer {
                 }
             }
 
+            // Deserialize voter attestations (optional field for backward compat)
+            Map<String, String> voterAttestations = new LinkedHashMap<>();
+            if (!json.isNull("voterAttestations")) {
+                JSONObject attJson = json.getJSONObject("voterAttestations");
+                for (String key : attJson.keySet()) {
+                    voterAttestations.put(key, attJson.getString(key));
+                }
+            }
+
             // Reconstruct block preserving the stored header values
-            return reconstructBlock(index, timestamp, previousHash, hash, validatorId, signature, credentials);
+            return reconstructBlock(index, timestamp, previousHash, hash, validatorId, signature,
+                    credentials, voterAttestations);
 
         } catch (JSONException e) {
             throw new RuntimeException("Failed to deserialize JSON to block: " + e.getMessage(), e);
@@ -325,8 +344,9 @@ public class JsonSerializer {
      */
     private static Block reconstructBlock(int index, long timestamp, String previousHash,
             String hash, String validatorId, String signature,
-            ArrayList<Credential> credentials) {
+            ArrayList<Credential> credentials, Map<String, String> voterAttestations) {
         // Use the deserialization constructor to preserve exact hash and timestamp
-        return new Block(index, timestamp, previousHash, hash, validatorId, signature, credentials);
+        return new Block(index, timestamp, previousHash, hash, validatorId, signature,
+                credentials, voterAttestations);
     }
 }

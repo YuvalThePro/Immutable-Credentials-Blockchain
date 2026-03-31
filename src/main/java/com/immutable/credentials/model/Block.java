@@ -2,7 +2,10 @@ package com.immutable.credentials.model;
 
 import java.security.PublicKey;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import com.immutable.credentials.crypto.CryptoUtils;
@@ -16,6 +19,8 @@ public class Block {
 
     private final BlockHeader header;
     private final ArrayList<Credential> credentials;
+    // voterId -> Base64-encoded RSA signature of blockHash. NOT part of the hash.
+    private final Map<String, String> voterAttestations;
 
     /**
      * Create a new block with calculated hash and signature.
@@ -41,6 +46,7 @@ public class Block {
 
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId, signature);
         this.credentials = new ArrayList<>(credentials);
+        this.voterAttestations = new LinkedHashMap<>();
     }
 
     /**
@@ -66,6 +72,7 @@ public class Block {
 
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId);
         this.credentials = new ArrayList<>(credentials);
+        this.voterAttestations = new LinkedHashMap<>();
     }
 
     /**
@@ -93,6 +100,7 @@ public class Block {
         String hash = calculateHash(index, fixedTimestamp, previousHash, credentials, validatorId);
         this.header = new BlockHeader(index, fixedTimestamp, previousHash, hash, validatorId, signature);
         this.credentials = new ArrayList<>(credentials);
+        this.voterAttestations = new LinkedHashMap<>();
     }
 
     /**
@@ -107,6 +115,7 @@ public class Block {
         }
         this.header = new BlockHeader(other.header);
         this.credentials = new ArrayList<>(other.credentials);
+        this.voterAttestations = new LinkedHashMap<>(other.voterAttestations);
     }
 
     /**
@@ -122,6 +131,7 @@ public class Block {
         }
         this.header = new BlockHeader(other.header, signature);
         this.credentials = new ArrayList<>(other.credentials);
+        this.voterAttestations = new LinkedHashMap<>(other.voterAttestations);
     }
 
     /**
@@ -141,6 +151,27 @@ public class Block {
      */
     public Block(int index, long timestamp, String previousHash, String hash,
             String validatorId, String signature, ArrayList<Credential> credentials) {
+        this(index, timestamp, previousHash, hash, validatorId, signature, credentials,
+                new LinkedHashMap<>());
+    }
+
+    /**
+     * Create a block from stored data during deserialization, including voter attestations.
+     * This constructor preserves exact header values without recalculating hash.
+     *
+     * @param index              the block index
+     * @param timestamp          the block timestamp
+     * @param previousHash       the previous block hash
+     * @param hash               the block hash (not recalculated)
+     * @param validatorId        the validator ID
+     * @param signature          the block signature (may be null)
+     * @param credentials        the credential payload
+     * @param voterAttestations  map of voterId -> Base64 vote signature (may be empty)
+     * @throws IllegalArgumentException if any required field is invalid
+     */
+    public Block(int index, long timestamp, String previousHash, String hash,
+            String validatorId, String signature, ArrayList<Credential> credentials,
+            Map<String, String> voterAttestations) {
         // Validate credential first
         if (credentials == null) {
             throw new IllegalArgumentException("Credentials are required");
@@ -180,7 +211,10 @@ public class Block {
         }
 
         this.header = new BlockHeader(index, timestamp, previousHash, hash, validatorId, signature);
-        this.credentials = new ArrayList<>(credentials); // Defensive copy for immutability
+        this.credentials = new ArrayList<>(credentials);
+        this.voterAttestations = voterAttestations != null
+                ? new LinkedHashMap<>(voterAttestations)
+                : new LinkedHashMap<>();
     }
 
     /**
@@ -314,16 +348,46 @@ public class Block {
 
     /**
      * Get the block signature.
-     * 
+     *
      * @return the cryptographic signature
      */
     public String getSignature() {
         return header.getSignature();
     }
 
+    /**
+     * Record a validator's attestation (vote signature) on this block.
+     * Attestations are added after the block is created but before finalization.
+     *
+     * @param voterId   the validator ID of the voter
+     * @param signature Base64-encoded RSA signature of this block's hash
+     * @throws IllegalArgumentException if voterId or signature is null/blank, or voterId already recorded
+     */
+    public void addVoterAttestation(String voterId, String signature) {
+        if (voterId == null || voterId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Voter ID cannot be null or empty");
+        }
+        if (signature == null || signature.trim().isEmpty()) {
+            throw new IllegalArgumentException("Attestation signature cannot be null or empty");
+        }
+        if (voterAttestations.containsKey(voterId)) {
+            return; // idempotent -- same voter already recorded
+        }
+        voterAttestations.put(voterId, signature);
+    }
+
+    /**
+     * Get an unmodifiable view of all voter attestations recorded on this block.
+     *
+     * @return map of voterId -> Base64 vote signature
+     */
+    public Map<String, String> getVoterAttestations() {
+        return Collections.unmodifiableMap(voterAttestations);
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(header, credentials);
+        return Objects.hash(header, credentials, voterAttestations);
     }
 
     @Override
@@ -334,11 +398,13 @@ public class Block {
             return false;
         Block other = (Block) obj;
         return Objects.equals(header, other.header) &&
-                Objects.equals(credentials, other.credentials);
+                Objects.equals(credentials, other.credentials) &&
+                Objects.equals(voterAttestations, other.voterAttestations);
     }
 
     @Override
     public String toString() {
-        return "Block [header=" + header + ", credential=" + credentials + "]";
+        return "Block [header=" + header + ", credentials=" + credentials
+                + ", voters=" + voterAttestations.size() + "]";
     }
 }

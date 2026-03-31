@@ -891,25 +891,81 @@ public class Node {
      * @param newChain the replacement chain
      */
     public synchronized boolean replaceChain(ArrayList<Block> newChain) {
+        if (!validateIncomingChain(newChain)) {
+            Logger.warn(
+                    "Chain replacement aborted: Incoming chain is cryptographically invalid or violates cooldown rules.");
+            return false;
+        }
+
         java.util.Map<String, PublicKey> pubKeyMap = buildValidatorPubKeyMap();
         java.util.List<Validator> activeValidators = getActiveValidators();
 
         int currentScore = BlockScoring.computeChainScore(blockchain.getChain(), activeValidators, pubKeyMap);
         int newScore = BlockScoring.computeChainScore(newChain, activeValidators, pubKeyMap);
 
-        if (newScore <= currentScore) {
-            Logger.log("Chain replacement rejected: incoming score (" + newScore
-                    + ") <= current score (" + currentScore + ")");
+        int currentHeight = blockchain.size();
+        int newHeight = newChain.size();
+
+        boolean shouldReplace = false;
+
+        if (newHeight > currentHeight) {
+            shouldReplace = true;
+        } else if (newHeight == currentHeight && newScore > currentScore) {
+            shouldReplace = true;
+        }
+        if (!shouldReplace) {
+            Logger.log("Chain replacement rejected. New: H=" + newHeight + ", S=" + newScore +
+                    " | Current: H=" + currentHeight + ", S=" + currentScore);
             return false;
         }
 
         blockchain.replaceChain(newChain);
         credentialIndex.rebuildIndex(blockchain);
-        Logger.log("Chain replaced via score: " + currentScore + " -> " + newScore
-                + ", new height: " + blockchain.size());
+
+        Logger.log("SUCCESS: Chain replaced! New height: " + newHeight + ", New score: " + newScore);
         return true;
     }
 
+    /**
+     * Validate an incoming chain against consensus rules and cooldown restrictions.
+     * Checks that each block in the chain is proposed by an active validator and
+     * that no validator violates the proposer cooldown. Also enforces consensus
+     * rules
+     * for each block transition.
+     *
+     * @param incomingChain the chain to validate (must not be null or empty)
+     * @return true if the incoming chain is valid according to consensus and
+     *         cooldown rules, false otherwise
+     */
+    private boolean validateIncomingChain(ArrayList<Block> incomingChain) {
+        if (incomingChain == null || incomingChain.isEmpty())
+            return false;
+
+        List<Validator> active = getActiveValidators();
+
+        for (int i = 1; i < incomingChain.size(); i++) {
+            Block current = incomingChain.get(i);
+            Block prev = incomingChain.get(i - 1);
+
+            if (BlockScoring.isProposerInCooldown(current.getValidatorId(), incomingChain.subList(0, i),
+                    active.size())) {
+                return false;
+            }
+
+            if (!proofOfAuthority.enforceConsensusRules(current, prev)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Build a map of validator IDs to their public keys for all authorized
+     * validators.
+     * Used for signature verification and chain validation.
+     *
+     * @return a map from validator ID to public key for all authorized validators
+     */
     private java.util.Map<String, PublicKey> buildValidatorPubKeyMap() {
         java.util.Map<String, PublicKey> map = new java.util.HashMap<>();
         for (Validator v : proofOfAuthority.getAuthorizedValidators()) {
@@ -918,6 +974,13 @@ public class Node {
         return map;
     }
 
+    /**
+     * Get the list of currently active validators from the authorized validator
+     * set.
+     * Only validators whose isActive() returns true are included.
+     *
+     * @return a list of active validators
+     */
     private java.util.List<Validator> getActiveValidators() {
         java.util.List<Validator> active = new java.util.ArrayList<>();
         for (Validator v : proofOfAuthority.getAuthorizedValidators()) {

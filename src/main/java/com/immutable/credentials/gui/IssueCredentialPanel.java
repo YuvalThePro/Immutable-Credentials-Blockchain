@@ -1,7 +1,5 @@
 package com.immutable.credentials.gui;
 
-import java.security.PrivateKey;
-import java.time.LocalDate;
 import java.util.UUID;
 
 import com.immutable.credentials.service.AuthService;

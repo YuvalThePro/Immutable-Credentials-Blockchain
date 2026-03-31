@@ -54,7 +54,7 @@ public class BlockScoring {
         int bonus = 0;
         for (Map.Entry<String, String> entry : block.getVoterAttestations().entrySet()) {
             PublicKey voterKey = validatorPublicKeys.get(entry.getKey());
-            if (voterKey != null && CryptoUtils.verifySignature(block.getHash(), entry.getValue(), voterKey)) {
+            if (voterKey != null && verifyAttestation(block.getHash(), entry.getValue(), voterKey)) {
                 bonus += VOTE_BONUS;
             }
         }

@@ -9,10 +9,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.immutable.credentials.auth.CredentialValidator;
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.model.Block;
 import com.immutable.credentials.model.Credential;
+import com.immutable.credentials.model.Institution;
 import com.immutable.credentials.network.P2PNetwork;
 import com.immutable.credentials.storage.BlockchainStorage;
 import com.immutable.credentials.storage.CredentialIndex;
@@ -65,7 +67,7 @@ public class Node {
      * Use isValidator() or isUniversity() to check node type.
      */
     private final Validator validator;
-
+    private final CredentialValidator credentialValidator;
     // ===== Core Components =====
     private Blockchain blockchain;
     private P2PNetwork network;
@@ -92,6 +94,12 @@ public class Node {
      * Only active on validator nodes. Started in start(), shut down in stop().
      */
     private ScheduledExecutorService blockScheduler;
+
+    /**
+     * Serializes consensus finalization so concurrent vote handlers cannot append
+     * the same block twice.
+     */
+    private final Object consensusFinalizeLock = new Object();
 
     // ===== Configuration =====
     private final String storageFileName;
@@ -141,7 +149,7 @@ public class Node {
      */
     public Node(String nodeId, String address, int port,
             Validator validator, ProofOfAuthority proofOfAuthority,
-            String storageFileName) {
+            String storageFileName, CredentialValidator credentialValidator) {
 
         validateCommonNodeArgs(nodeId, address, port, proofOfAuthority, storageFileName);
         if (validator == null) {
@@ -160,6 +168,7 @@ public class Node {
         this.credentialIndex = new CredentialIndex();
         this.pendingCredentials = new ArrayList<>();
         this.running = false;
+        this.credentialValidator = credentialValidator;
     }
 
     /**
@@ -189,6 +198,7 @@ public class Node {
         this.credentialIndex = new CredentialIndex();
         this.pendingCredentials = new ArrayList<>();
         this.running = false;
+        this.credentialValidator = null;
     }
 
     /**
@@ -226,6 +236,7 @@ public class Node {
         this.credentialIndex = new CredentialIndex();
         this.pendingCredentials = new ArrayList<>();
         this.running = false;
+        this.credentialValidator = new CredentialValidator();
     }
 
     /**
@@ -346,7 +357,26 @@ public class Node {
         }
 
         // If we are the current proposer, accept into our mempool
-        acceptIfCurrentProposer(credential);
+        boolean acceptedLocally = acceptIfCurrentProposer(credential);
+        if (acceptedLocally) {
+            return;
+        }
+
+        int peers = (network != null) ? network.getPeerList().size() : 0;
+        Validator proposer = proofOfAuthority.getCurrentProposer(blockchain.size());
+        String proposerId = proposer != null ? proposer.getValidatorId() : "unknown";
+
+        if (peers == 0) {
+            String msg = "Credential " + credential.getCredentialId()
+                    + " was not queued: current proposer is " + proposerId
+                    + " and this node has no connected peers.";
+            Logger.warn(msg);
+            throw new IllegalStateException(msg);
+        }
+
+        Logger.log("Credential " + credential.getCredentialId()
+                + " forwarded to network. Current proposer: " + proposerId
+                + " (" + peers + " peer" + (peers == 1 ? "" : "s") + " connected)");
     }
 
     /**
@@ -370,28 +400,36 @@ public class Node {
      *
      * @param credential the credential to potentially accept
      */
-    private void acceptIfCurrentProposer(Credential credential) {
-        if (!isValidator())
-            return;
+    private boolean acceptIfCurrentProposer(Credential credential) {
+        if (!isValidator()) {
+            return false;
+        }
+
+        if (!credentialValidator.isCredentialValid(credential)) {
+            Logger.warn("Rejected: Credential " + credential.getCredentialId() +
+                    " failed signature verification or unknown institution.");
+            return false;
+        }
 
         int nextIndex = blockchain.size();
         Validator currentProposer = proofOfAuthority.getCurrentProposer(nextIndex);
         if (currentProposer == null
                 || !currentProposer.getValidatorId().equals(validator.getValidatorId())) {
-            return; // not our turn
+            return false;
         }
 
         synchronized (pendingCredentials) {
             for (Credential pending : pendingCredentials) {
                 if (pending.getCredentialId().equals(credential.getCredentialId())) {
-                    return; // already queued
+                    return true;
                 }
             }
             pendingCredentials.add(credential);
         }
 
         Logger.log("Credential " + credential.getCredentialId()
-                + " accepted into mempool (" + pendingCredentials.size() + " pending)");
+                + " verified and accepted into mempool (" + pendingCredentials.size() + " pending)");
+        return true;
     }
 
     /**
@@ -441,6 +479,11 @@ public class Node {
             // Sign and broadcast the proposal (block is NOT added to chain yet)
             String signature = validator.signBlock(unsignedBlock);
             Block signedBlock = new Block(unsignedBlock, signature);
+
+            // Share proposal with other validators so they can vote.
+            if (network != null) {
+                network.broadcastProposedBlock(signedBlock);
+            }
 
             handleProposedBlock(signedBlock);
 
@@ -515,6 +558,11 @@ public class Node {
             throw new IllegalArgumentException("Voter ID cannot be null");
         }
 
+        // Only validators participate in consensus finalization
+        if (!isValidator()) {
+            return;
+        }
+
         // Look up the voter
         Validator voter = proofOfAuthority.getValidatorById(voterId);
         if (voter == null) {
@@ -547,29 +595,57 @@ public class Node {
      * @param blockHash  the block hash to check consensus for
      */
     private void checkAndFinalizeConsensus(int blockIndex, String blockHash) {
-        if (!proofOfAuthority.hasConsensus(blockIndex, blockHash)) {
-            return;
+        synchronized (consensusFinalizeLock) {
+            if (!proofOfAuthority.hasConsensus(blockIndex, blockHash)) {
+                return;
+            }
+
+            Block consensusBlock = proofOfAuthority.getConsensusBlock(blockIndex);
+            if (consensusBlock == null) {
+                return;
+            }
+
+            Block latest = blockchain.getLatestBlock();
+            int expectedIndex = blockchain.size();
+
+            // Already finalized locally (possibly by another vote-handler thread).
+            if (latest != null && latest.getHash() != null
+                    && latest.getHash().equals(consensusBlock.getHash())) {
+                proofOfAuthority.clearPendingBlocks(blockIndex);
+                return;
+            }
+
+            // Only append the exact next block; ignore stale/out-of-order finalize calls.
+            if (consensusBlock.getIndex() != expectedIndex) {
+                if (consensusBlock.getIndex() < expectedIndex) {
+                    proofOfAuthority.clearPendingBlocks(blockIndex);
+                }
+                return;
+            }
+
+            String expectedPreviousHash = (latest != null) ? latest.getHash() : "0";
+            if (consensusBlock.getPreviousHash() == null
+                    || !consensusBlock.getPreviousHash().equals(expectedPreviousHash)) {
+                return;
+            }
+
+            Logger.log("[DEBUG] checkAndFinalizeConsensus: About to add block idx=" + consensusBlock.getIndex()
+                    + ", hash=" + consensusBlock.getHash() + ", chainHeight(before)=" + blockchain.size());
+            blockchain.addBlock(consensusBlock);
+            Logger.log("[DEBUG] checkAndFinalizeConsensus: Chain height(after)=" + blockchain.size());
+            credentialIndex.addCredentials(consensusBlock.getCredentials());
+
+            // Propagate finalized block to validators and non-validator peers.
+            if (network != null) {
+                network.broadcastBlock(consensusBlock);
+            }
+
+            // Clean up PoA pending state
+            proofOfAuthority.clearPendingBlocks(blockIndex);
+
+            Logger.log("Block #" + blockIndex + " finalized via consensus ("
+                    + consensusBlock.getCredentials().size() + " credentials)");
         }
-
-        // Prevent double-finalization (block may already have been added)
-        if (blockIndex < blockchain.size()) {
-            return;
-        }
-
-        Block consensusBlock = proofOfAuthority.getConsensusBlock(blockIndex);
-        if (consensusBlock == null) {
-            return;
-        }
-
-        // Finalize: add to chain and update index
-        blockchain.addBlock(consensusBlock);
-        credentialIndex.addCredentials(consensusBlock.getCredentials());
-
-        // Clean up PoA pending state
-        proofOfAuthority.clearPendingBlocks(blockIndex);
-
-        Logger.log("Block #" + blockIndex + " finalized via consensus (" +
-                consensusBlock.getCredentials().size() + " credentials)");
     }
 
     /**
@@ -582,22 +658,41 @@ public class Node {
      */
     public boolean processIncomingBlock(Block block) {
         if (block == null) {
+            Logger.warn("[DEBUG] processIncomingBlock: Block is null");
             throw new IllegalArgumentException("Block cannot be null");
         }
 
-        Block previousBlock = blockchain.getBlock(block.getIndex() - 1);
+        synchronized (consensusFinalizeLock) {
+            Logger.log("[DEBUG] processIncomingBlock called: blockIdx=" + block.getIndex()
+                    + ", hash=" + block.getHash() + ", chainHeight(before)=" + blockchain.size());
 
-        if (!proofOfAuthority.enforceConsensusRules(block, previousBlock)) {
-            Logger.warn("Rejected block #" + block.getIndex() +
-                    " from " + block.getValidatorId() + ": consensus rules not satisfied");
-            return false;
+            Block existing = blockchain.getBlock(block.getIndex());
+            if (existing != null && existing.getHash() != null && existing.getHash().equals(block.getHash())) {
+                Logger.warn("[DEBUG] processIncomingBlock: Duplicate detected idx=" + block.getIndex() + ", hash="
+                        + block.getHash() + ", skipping add. Chain height=" + blockchain.size());
+                return false;
+            }
+
+            Block previousBlock = blockchain.getBlock(block.getIndex() - 1);
+
+            boolean consensusOk = proofOfAuthority.enforceConsensusRules(block, previousBlock);
+            if (!consensusOk) {
+                Logger.warn("Rejected block #" + block.getIndex() +
+                        " from " + block.getValidatorId() + ": consensus rules not satisfied");
+                return false;
+            }
+
+            Logger.log("[DEBUG] processIncomingBlock: About to add block idx=" + block.getIndex() + ", hash="
+                    + block.getHash() + ", chainHeight(before)=" + blockchain.size());
+
+            blockchain.addBlock(block);
+            credentialIndex.addCredentials(block.getCredentials());
+
+            Logger.log("[DEBUG] processIncomingBlock: Chain height(after)=" + blockchain.size());
+            Logger.log("Accepted block #" + block.getIndex() + " from " + block.getValidatorId());
+
+            return true;
         }
-
-        blockchain.addBlock(block);
-        credentialIndex.addCredentials(block.getCredentials());
-
-        Logger.log("Accepted block #" + block.getIndex() + " from " + block.getValidatorId());
-        return true;
     }
 
     /**
@@ -761,11 +856,20 @@ public class Node {
     /**
      * Replace the local chain with a new list of blocks.
      * Used during chain synchronization when a peer has a longer valid chain.
+     * Rebuilds the credential index from the new chain so lookups reflect
+     * all credentials in the synchronized blockchain.
      *
      * @param newChain the replacement chain
      */
-    public void replaceChain(ArrayList<Block> newChain) {
+    public synchronized boolean replaceChain(ArrayList<Block> newChain) {
+        if (newChain.size() <= blockchain.size()) {
+            return false;
+        }
+
         blockchain.replaceChain(newChain);
+        credentialIndex.rebuildIndex(blockchain);
+        Logger.log("Chain successfully replaced. New height: " + blockchain.size());
+        return true;
     }
 
     /**
@@ -790,6 +894,12 @@ public class Node {
      * @param block the validated block to append
      */
     public void addBlockToChain(Block block) {
+        Block existing = blockchain.getBlock(block.getIndex());
+        if (existing != null && existing.getHash() != null && existing.getHash().equals(block.getHash())) {
+            Logger.warn("Block #" + block.getIndex() + " already exists in the local chain. Skipping addition.");
+            return;
+        }
+
         blockchain.addBlock(block);
         credentialIndex.addCredentials(block.getCredentials());
     }
@@ -863,5 +973,33 @@ public class Node {
         synchronized (pendingCredentials) {
             return new ArrayList<>(pendingCredentials);
         }
+    }
+
+    /**
+     * Synchronize the authorized validator list with a fresh copy from the
+     * database. Delegates to {@link ProofOfAuthority#syncValidators(List)}.
+     * Called periodically by the UI sync scheduler so that newly registered
+     * validators are recognized without restarting the node.
+     *
+     * @param fresh the up-to-date validator list; must not be {@code null} or empty
+     * @throws IllegalArgumentException if {@code fresh} is {@code null} or empty
+     */
+    public synchronized void syncValidators(List<Validator> fresh) {
+        proofOfAuthority.syncValidators(fresh);
+    }
+
+    /**
+     * Synchronize the authorized institutions list with a fresh copy from the
+     * database. Delegates to {@link ProofOfAuthority#syncInstitutions(List)}.
+     * Called periodically by the UI sync scheduler so that newly registered
+     * institutions are recognized without restarting the node.
+     *
+     * @param fresh the up-to-date institution list; must not be {@code null} or
+     *              empty
+     * @throws IllegalArgumentException if {@code fresh} is {@code null} or empty
+     */
+
+    public synchronized void syncInstitutions(List<Institution> fresh) {
+        credentialValidator.syncInstitutions(fresh);
     }
 }

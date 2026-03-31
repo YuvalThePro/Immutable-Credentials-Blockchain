@@ -18,7 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import com.immutable.credentials.util.Logger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -54,7 +54,7 @@ public class P2PNetwork {
 	private final ConcurrentMap<String, PeerConnection> connectionsByNodeId = new ConcurrentHashMap<>();
 	private final ConcurrentMap<String, Peer> knownPeers = new ConcurrentHashMap<>();
 	private final Set<String> seenMessageIds = ConcurrentHashMap.newKeySet();
-
+	private final AtomicBoolean isSyncing = new AtomicBoolean(false);
 	private volatile boolean running;
 
 	// ===== Configuration =====
@@ -83,8 +83,7 @@ public class P2PNetwork {
 		this.connectTimeoutMillis = connectTimeoutMillis;
 		this.discoveryIntervalMillis = discoveryIntervalMillis;
 		this.syncIntervalMillis = syncIntervalMillis;
-		this.connectionPool = Executors.newFixedThreadPool(maxConnections);
-		this.scheduler = Executors.newScheduledThreadPool(3);
+		// Executors are created (and re-created after stop) in start().
 	}
 
 	/**
@@ -99,11 +98,20 @@ public class P2PNetwork {
 
 	/**
 	 * Start the network listener and background workers.
+	 * Safe to call after a previous {@link #stop()} — recreates the executor
+	 * services (which are permanently terminated by stop) and reconnects to
+	 * every peer that was known before the node was stopped.
 	 */
 	public synchronized void start() throws IOException {
 		if (running) {
 			return; // Already started
 		}
+
+		// Recreate executor services — stop() permanently shuts them down and
+		// a terminated ExecutorService cannot accept new tasks.
+		connectionPool = Executors.newFixedThreadPool(maxConnections);
+		scheduler = Executors.newScheduledThreadPool(3);
+
 		serverSocket = new ServerSocket(listenPort);
 		running = true;
 
@@ -122,6 +130,15 @@ public class P2PNetwork {
 		scheduler.scheduleAtFixedRate(this::pingPeers,
 				10_000, 10_000,
 				java.util.concurrent.TimeUnit.MILLISECONDS);
+
+		// Reconnect to every peer that was known before the node was stopped.
+		// knownPeers is intentionally preserved across stop/start so this loop
+		// restores the previous topology automatically.
+		for (Peer peer : knownPeers.values()) {
+			if (!peer.getNodeId().equals(node.getId())) {
+				connectToPeer(peer.getAddress(), peer.getPort());
+			}
+		}
 
 		System.out.println("[P2PNetwork] Started on port " + listenPort + " (max connections: " + maxConnections + ")");
 	}
@@ -204,8 +221,11 @@ public class P2PNetwork {
 			return;
 		}
 
-		if (knownPeers.values().stream()
-				.anyMatch(p -> p.getAddress().equals(host) && p.getPort() == port)) {
+		// Guard against duplicate *active* connections only.
+		// Checking knownPeers here would block reconnection after a stop/start
+		// because knownPeers is intentionally preserved across restarts.
+		if (connectionsByNodeId.values().stream()
+				.anyMatch(c -> c.peer.getAddress().equals(host) && c.peer.getPort() == port)) {
 			System.out.println("[P2PNetwork] Already connected to " + host + ":" + port);
 			return;
 		}
@@ -378,7 +398,10 @@ public class P2PNetwork {
 		JSONObject payload = new JSONObject();
 		payload.put("blockIndex", blockIndex);
 		payload.put("blockHash", blockHash);
-		payload.put("voterId", node.getId());
+		String voterId = node.getValidator() != null
+				? node.getValidator().getValidatorId()
+				: node.getId();
+		payload.put("voterId", voterId);
 		payload.put("approve", approve);
 		NetworkMessage message = new NetworkMessage(MessageType.BLOCK_VOTE, node.getId(), payload);
 		seenMessageIds.add(message.getMessageId());
@@ -627,24 +650,29 @@ public class P2PNetwork {
 		Validator validator = node.getValidatorById(block.getValidatorId());
 		if (validator == null)
 			return false;
+
 		if (!node.validateBlockSignature(block, validator.getPublicKey()))
 			return false;
-		node.addBlockToChain(block);
-		return true;
+
+		return node.processIncomingBlock(block);
 	}
 
 	/**
 	 * Handle a SEND_CHAIN message.
 	 */
 	private void handleChainMessage(NetworkMessage message, PeerConnection connection) {
-		String payload = message.getPayload().toString();
+		try {
+			String payload = message.getPayload().toString();
 
-		Blockchain incomingChain = new Blockchain(JsonSerializer.jsonToChain(payload));
-		if (!node.validateIncomingChain(incomingChain))
-			return;
-		if (incomingChain.getChain().size() <= node.getChainHeight())
-			return;
-		node.replaceChain(incomingChain.getChain());
+			Blockchain incomingChain = new Blockchain(JsonSerializer.jsonToChain(payload));
+			if (!node.validateIncomingChain(incomingChain))
+				return;
+			if (incomingChain.getChain().size() <= node.getChainHeight())
+				return;
+			node.replaceChain(incomingChain.getChain());
+		} finally {
+			isSyncing.set(false);
+		}
 	}
 
 	/**
@@ -730,12 +758,15 @@ public class P2PNetwork {
 		JSONObject payload = (JSONObject) message.getPayload();
 		int peerHeight = payload.optInt("currentHeight", 0);
 		if (peerHeight > node.getChainHeight()) {
-			JSONObject requestPayload = new JSONObject();
-			requestPayload.put("currentHeight", node.getChainHeight());
-			NetworkMessage request = new NetworkMessage(MessageType.REQUEST_CHAIN, node.getId(), requestPayload);
-			sendMessage(connection, request);
-			System.out.println("[P2PNetwork] Peer " + connection.peer.getNodeId() + " is ahead (" + peerHeight + " vs "
-					+ node.getChainHeight() + "), requesting chain");
+			if (isSyncing.compareAndSet(false, true)) {
+				JSONObject requestPayload = new JSONObject();
+				requestPayload.put("currentHeight", node.getChainHeight());
+				NetworkMessage request = new NetworkMessage(MessageType.REQUEST_CHAIN, node.getId(), requestPayload);
+				sendMessage(connection, request);
+				System.out.println(
+						"[P2PNetwork] Peer " + connection.peer.getNodeId() + " is ahead (" + peerHeight + " vs "
+								+ node.getChainHeight() + "), requesting chain");
+			}
 		} else if (peerHeight < node.getChainHeight()) {
 			// We're ahead — push our chain to the lagging peer so they can sync
 			String chainJson = JsonSerializer.chainToJson(node.getChain());
@@ -772,6 +803,7 @@ public class P2PNetwork {
 		System.out.println("[P2PNetwork] Peer disconnected gracefully: " + connection.peer.getNodeId());
 		connection.close();
 		connection.peer.setConnected(false);
+		connectionsByNodeId.remove(connection.peer.getNodeId());
 	}
 
 	/**
@@ -787,10 +819,13 @@ public class P2PNetwork {
 			if (connectionsByNodeId.containsKey(peer.getNodeId())) {
 				continue;
 			}
-			connectToPeer(peer.getAddress(), peer.getPort());
 
-			knownPeers.putIfAbsent(peer.getNodeId(), peer);
-
+			// Only attempt to connect to newly discovered peers to avoid connection spam to
+			// offline nodes
+			if (!knownPeers.containsKey(peer.getNodeId())) {
+				knownPeers.put(peer.getNodeId(), peer);
+				connectToPeer(peer.getAddress(), peer.getPort());
+			}
 		}
 	}
 
@@ -813,6 +848,8 @@ public class P2PNetwork {
 			System.err.println("[P2PNetwork] Failed to send message to "
 					+ connection.peer.getNodeId() + ": " + e.getMessage());
 			connection.close();
+			connectionsByNodeId.remove(connection.peer.getNodeId());
+			connection.peer.setConnected(false);
 		}
 	}
 

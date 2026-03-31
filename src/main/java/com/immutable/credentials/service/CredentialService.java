@@ -1,7 +1,9 @@
 package com.immutable.credentials.service;
 
 import com.immutable.credentials.core.Node;
+import com.immutable.credentials.crypto.CryptoUtils;
 import com.immutable.credentials.model.Credential;
+import com.immutable.credentials.util.Logger;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -37,13 +39,19 @@ public class CredentialService {
      * @throws IllegalStateException    if the node is not running or is not a
      *                                  university or validator node
      */
-    public void issueCredential(String studentName, String studentId,
-            String degree, String institution,
-            LocalDate dateAwarded, String credentialId) {
-        if (!node.isRunning() || !isUniversityNode())
-            throw new IllegalStateException("Node must be running and must be a university or validator node.");
-        Date date = Date.from(dateAwarded.atStartOfDay(ZoneId.systemDefault()).toInstant());
-        node.submitCredential(new Credential(studentName, date, degree, institution, studentId, credentialId));
+    public void issueCredential(String name, String sId, String degree, String inst,
+            LocalDate date, String cId, java.security.PrivateKey privKey) {
+
+        Date dateAwarded = Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+        Credential draft = new Credential(name, dateAwarded, degree, inst, sId, cId);
+
+        String signature = CryptoUtils.signData(draft.calculateDataForSigning(), privKey);
+
+        Credential signedCredential = new Credential(draft, signature);
+        String dataToSign = signedCredential.calculateDataForSigning();
+        Logger.log("[DEBUG-SIGN] Data being signed: [" + dataToSign + "]");
+        node.submitCredential(signedCredential);
     }
 
     /**

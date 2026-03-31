@@ -51,13 +51,9 @@ public class BlockchainTest {
     }
 
     @Test
-    public void testGenesisBlockCredential() {
+    public void testGenesisBlockHasNoCredentials() {
         Block genesis = blockchain.getBlock(0);
-        Credential cred = genesis.getCredentials().get(0);
-        
-        Assert.assertNotNull("Genesis credential should not be null", cred);
-        Assert.assertEquals("Genesis student ID", "GENESIS-000", cred.getStudentId());
-        Assert.assertEquals("Genesis credential ID", "GENESIS-CRED-000", cred.getCredentialId());
+        Assert.assertTrue("Genesis block should have no credentials", genesis.getCredentials().isEmpty());
     }
 
     // ========== Add Block Tests ==========
@@ -459,7 +455,7 @@ public class BlockchainTest {
 
     @Test
     public void testCredentialIdExistsGenesis() {
-        Assert.assertTrue("Genesis credential ID should exist", blockchain.credentialIdExists("GENESIS-CRED-000"));
+        Assert.assertFalse("Genesis has no credentials", blockchain.credentialIdExists("GENESIS-CRED-000"));
     }
 
     // ========== Copy Constructor Tests ==========

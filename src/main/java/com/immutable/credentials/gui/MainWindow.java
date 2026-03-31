@@ -1,22 +1,29 @@
 package com.immutable.credentials.gui;
 
 import java.io.IOException;
+import java.net.URL;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import com.immutable.credentials.auth.CredentialValidator;
 import com.immutable.credentials.auth.NodeConfig;
 import com.immutable.credentials.service.AdminService;
 import com.immutable.credentials.service.AuthService;
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.core.Node;
+import com.immutable.credentials.model.Institution;
 import com.immutable.credentials.network.P2PNetwork;
 import com.immutable.credentials.service.BlockchainService;
 import com.immutable.credentials.service.CredentialService;
 import com.immutable.credentials.service.NetworkService;
 import com.immutable.credentials.service.NodeService;
 import com.immutable.credentials.util.ConfigLoader;
+import com.immutable.credentials.util.Logger;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -79,6 +86,8 @@ public class MainWindow extends Application {
     private BlockchainService blockchainService;
     private NetworkService networkService;
     private AdminService adminService;
+    private ScheduledExecutorService syncScheduler;
+    private static final long SYNC_INTERVAL_MS = 30_000;
 
     // ===== Auth / Session =====
     private AuthService authService;
@@ -141,12 +150,22 @@ public class MainWindow extends Application {
         this.nodeConfig = nodeConfig;
         initServices(nodeConfig);
 
+        try {
+            nodeService.startNode();
+            markNodeOnlineInDatabase();
+            tryBootstrapNetwork();
+        } catch (Exception e) {
+            showStartupError("Failed to start node:\n" + e.getMessage());
+            return;
+        }
+
         rootLayout = new BorderPane();
         rootLayout.setTop(buildMenuBar());
         rootLayout.setCenter(buildTabPane());
         rootLayout.setBottom(buildStatusBar());
 
         Scene scene = new Scene(rootLayout, 900, 650);
+        applyStylesheet(scene);
         String windowTitle = "Immutable Credentials Blockchain";
         if (nodeConfig.getDisplayName() != null && !nodeConfig.getDisplayName().trim().isEmpty()) {
             windowTitle += " — " + nodeConfig.getDisplayName();
@@ -160,6 +179,26 @@ public class MainWindow extends Application {
         this.primaryStage.show();
 
         refreshStatusBar();
+        syncScheduler = Executors.newSingleThreadScheduledExecutor();
+        syncScheduler.scheduleAtFixedRate(() -> {
+            try {
+                List<Validator> fresh = authService.loadValidators();
+                List<Institution> freshInstitutions = authService.getAllInstitutions();
+                nodeService.syncValidators(fresh);
+                nodeService.syncInstitutions(freshInstitutions);
+                Platform.runLater(() -> {
+                    refreshStatusBar();
+                    if (blockchainPanel != null)
+                        blockchainPanel.onRefresh();
+                    if (networkPanel != null)
+                        networkPanel.onRefresh();
+                });
+            } catch (Exception e) {
+                Logger.warn("Validator sync failed: " + e.getMessage());
+            }
+        }, SYNC_INTERVAL_MS, SYNC_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        Logger.log("Sync scheduler started (interval: " + SYNC_INTERVAL_MS + "ms)");
+
     }
 
     /**
@@ -170,7 +209,8 @@ public class MainWindow extends Application {
      * for validator nodes in the keys/ directory.
      *
      * @param dbConfig the node configuration returned by the cloud database login
-     * @throws RuntimeException if configuration cannot be loaded or the node cannot be constructed
+     * @throws RuntimeException if configuration cannot be loaded or the node cannot
+     *                          be constructed
      */
     private void initServices(NodeConfig dbConfig) throws RuntimeException {
         try {
@@ -179,10 +219,13 @@ public class MainWindow extends Application {
             String dataDir = dbConfig.getDataDir();
             String storageFile = dataDir + "/blockchain.jsonl";
             String address = "localhost";
+            String runtimeNodeId = String.valueOf(dbConfig.getNodeUserId());
 
             // Load the shared validator list from the cloud database.
             List<Validator> validators = ConfigLoader.loadValidatorList(authService);
-
+            List<Institution> institutions = ConfigLoader.loadInstitutionList(authService);
+            CredentialValidator credentialValidator = new CredentialValidator();
+            credentialValidator.addInstitutions(institutions);
             Node node;
             if ("validator".equals(nodeType)) {
                 String validatorId = dbConfig.getValidatorId();
@@ -194,7 +237,7 @@ public class MainWindow extends Application {
                         validatorId, dbConfig.getInstitution(), validators, authService);
                 localValidator.activate();
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
-                node = new Node(validatorId, address, port, localValidator, poa, storageFile);
+                node = new Node(runtimeNodeId, address, port, localValidator, poa, storageFile, credentialValidator);
 
             } else {
                 if (validators.isEmpty()) {
@@ -204,9 +247,11 @@ public class MainWindow extends Application {
                 }
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
                 if ("university".equals(nodeType)) {
-                    node = new Node(nodeConfig.getId(), address, port, poa, storageFile, true);
+                    ConfigLoader.loadLocalUniversityKey(runtimeNodeId, dbConfig.getInstitution(), authService);
+
+                    node = new Node(runtimeNodeId, address, port, poa, storageFile, true);
                 } else {
-                    node = new Node(nodeConfig.getId(), address, port, poa, storageFile);
+                    node = new Node(runtimeNodeId, address, port, poa, storageFile);
                 }
             }
 
@@ -285,10 +330,10 @@ public class MainWindow extends Application {
      * @return a configured TabPane with all panels attached
      */
     private TabPane buildTabPane() {
-        issuePanel = new IssueCredentialPanel(credentialService, nodeService);
+        issuePanel = new IssueCredentialPanel(credentialService, nodeService, authService);
         verifyPanel = new VerifyCredentialPanel(credentialService);
         blockchainPanel = new BlockchainViewerPanel(blockchainService);
-        networkPanel = new NetworkStatusPanel(networkService, nodeService);
+        networkPanel = new NetworkStatusPanel(networkService, nodeService, getDisplayNodeId());
 
         Tab issueTab = new Tab("Issue Credential", issuePanel);
         Tab verifyTab = new Tab("Verify Credential", verifyPanel);
@@ -330,10 +375,12 @@ public class MainWindow extends Application {
      */
     private HBox buildStatusBar() {
         statusNodeLabel = new Label("Node: -");
+        statusBlockLabel = new Label("Blocks: 0");
+        statusPeerLabel = new Label("Peers: 0");
 
         statusBar = new HBox(20, statusNodeLabel, statusBlockLabel, statusPeerLabel);
         statusBar.setPadding(new Insets(4, 8, 4, 8));
-        statusBar.setStyle("-fx-background-color: #f0f0f0; -fx-border-color: #cccccc; -fx-border-width: 1 0 0 0;");
+        statusBar.getStyleClass().add("status-bar");
         return statusBar;
     }
 
@@ -345,7 +392,7 @@ public class MainWindow extends Application {
     private void refreshStatusBar() {
         if (nodeService == null)
             return;
-        String nodeId = nodeService.isRunning() ? nodeService.getNodeId() : "-";
+        String nodeId = nodeService.isRunning() ? getDisplayNodeId() : "-";
         String nodeType = nodeService.isValidator() ? "Validator"
                 : (nodeService.isUniversity() ? "University" : "Read-Only");
         statusNodeLabel.setText("Node: " + nodeId + " (" + nodeType + ")");
@@ -361,6 +408,8 @@ public class MainWindow extends Application {
     private void onStartNode() {
         try {
             nodeService.startNode();
+            markNodeOnlineInDatabase();
+            tryBootstrapNetwork();
             updateIssueTabVisibility();
             refreshStatusBar();
         } catch (Exception e) {
@@ -376,6 +425,7 @@ public class MainWindow extends Application {
     private void onStopNode() {
         try {
             nodeService.stopNode();
+            markNodeOfflineInDatabase();
             updateIssueTabVisibility();
             refreshStatusBar();
         } catch (Exception e) {
@@ -449,6 +499,10 @@ public class MainWindow extends Application {
         try {
             if (nodeService != null && nodeService.isRunning()) {
                 nodeService.stopNode();
+                markNodeOfflineInDatabase();
+            }
+            if (syncScheduler != null) {
+                syncScheduler.shutdownNow();
             }
         } catch (Exception e) {
             // Best-effort shutdown — log but do not block exit
@@ -495,5 +549,70 @@ public class MainWindow extends Application {
         alert.setHeaderText(null);
         alert.setContentText(message != null ? message : "An unexpected error occurred.");
         alert.showAndWait();
+    }
+
+    private void applyStylesheet(Scene scene) {
+        URL stylesheet = MainWindow.class.getResource("/com/immutable/credentials/gui/css/main.css");
+        if (stylesheet != null) {
+            scene.getStylesheets().add(stylesheet.toExternalForm());
+        }
+    }
+
+    /**
+     * Attempt startup bootstrap by connecting to one active validator endpoint.
+     * This is best-effort and must not block UI startup on failure.
+     */
+    private void tryBootstrapNetwork() {
+        if (authService == null || networkService == null) {
+            return;
+        }
+        try {
+            boolean connected = networkService.bootstrap(authService.loadActiveValidatorEndpoints());
+            if (!connected) {
+                Logger.warn("Startup bootstrap did not connect to any validator endpoint.");
+            }
+        } catch (Exception e) {
+            Logger.warn("Startup bootstrap failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Best-effort DB presence update when this node starts.
+     */
+    private void markNodeOnlineInDatabase() {
+        if (authService == null || nodeConfig == null || nodeService == null) {
+            return;
+        }
+        try {
+            authService.markNodeOnline(nodeConfig.getNodeUserId(), nodeService.getNodeAddress(),
+                    nodeService.getNodePort());
+        } catch (Exception e) {
+            Logger.warn("Failed to mark node online in database: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Best-effort DB presence update when this node stops.
+     */
+    private void markNodeOfflineInDatabase() {
+        if (authService == null || nodeConfig == null) {
+            return;
+        }
+        try {
+            authService.markNodeOffline(nodeConfig.getNodeUserId());
+        } catch (Exception e) {
+            Logger.warn("Failed to mark node offline in database: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Returns a stable UI display ID for this node (DB row id), independent of
+     * runtime network identity used by consensus/P2P internals.
+     */
+    private String getDisplayNodeId() {
+        if (nodeConfig == null) {
+            return "-";
+        }
+        return String.valueOf(nodeConfig.getNodeUserId());
     }
 }

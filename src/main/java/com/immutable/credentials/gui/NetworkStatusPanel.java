@@ -61,6 +61,7 @@ public class NetworkStatusPanel extends VBox {
     // ===== Services =====
     private final NetworkService networkService;
     private final NodeService nodeService;
+    private final String displayNodeId;
 
     // ===== Toolbar =====
     private Button refreshButton;
@@ -89,15 +90,17 @@ public class NetworkStatusPanel extends VBox {
      *                       must not be {@code null}
      * @param nodeService    middleware service for node identity queries;
      *                       must not be {@code null}
+     * @param displayNodeId  stable UI node identifier to display
      * @throws IllegalArgumentException if either service is {@code null}
      */
-    public NetworkStatusPanel(NetworkService networkService, NodeService nodeService) {
+    public NetworkStatusPanel(NetworkService networkService, NodeService nodeService, String displayNodeId) {
         if (networkService == null)
             throw new IllegalArgumentException("networkService must not be null.");
         if (nodeService == null)
             throw new IllegalArgumentException("nodeService must not be null.");
         this.networkService = networkService;
         this.nodeService = nodeService;
+        this.displayNodeId = displayNodeId;
 
         setSpacing(10);
         setPadding(new Insets(16));
@@ -187,7 +190,8 @@ public class NetworkStatusPanel extends VBox {
      * {@code "<nodeId>  <address>:<port>  [Validator]"} where the
      * {@code [Validator]} suffix is only appended for validator peers.
      *
-     * @return a {@link VBox} containing the section heading, count label, and list view
+     * @return a {@link VBox} containing the section heading, count label, and list
+     *         view
      */
     private VBox buildPeerListSection() {
         Text title = new Text("Connected Peers");
@@ -270,14 +274,17 @@ public class NetworkStatusPanel extends VBox {
     }
 
     /**
-     * Refresh the Node Information labels using the latest data from {@link NodeService}.
+     * Refresh the Node Information labels using the latest data from
+     * {@link NodeService}.
      * The Validator ID row is set to "N/A" when {@link NodeService#isValidator()}
      * returns {@code false}.
      * The node type string is derived from {@link NodeService#isValidator()} and
      * {@link NodeService#isUniversity()}.
      */
     private void refreshNodeInfo() {
-        nodeIdLabel.setText(nodeService.getNodeId());
+        nodeIdLabel.setText(displayNodeId != null && !displayNodeId.trim().isEmpty()
+                ? displayNodeId
+                : nodeService.getNodeId());
 
         String address = nodeService.getNodeAddress() + ":" + nodeService.getNodePort();
         nodeAddressLabel.setText(address);
@@ -301,8 +308,10 @@ public class NetworkStatusPanel extends VBox {
     }
 
     /**
-     * Refresh the Network Statistics labels using the latest data from {@link NetworkService}.
-     * The {@link #networkRunningLabel} is coloured green when the listener is active
+     * Refresh the Network Statistics labels using the latest data from
+     * {@link NetworkService}.
+     * The {@link #networkRunningLabel} is coloured green when the listener is
+     * active
      * and red when it is stopped.
      * The {@link #syncStatusLabel} displays the string returned by
      * {@link NetworkService#getSyncStatusDescription()}.
@@ -320,7 +329,8 @@ public class NetworkStatusPanel extends VBox {
     // -------------------------------------------------------------------------
 
     /**
-     * Open a two-field input dialog prompting for a peer's host name/IP and port number.
+     * Open a two-field input dialog prompting for a peer's host name/IP and port
+     * number.
      * On confirmation the values are validated and forwarded to
      * {@link NetworkService#connectToPeer(String, int)}.
      * An {@link Alert} is shown afterwards to report success or the specific error
@@ -385,7 +395,8 @@ public class NetworkStatusPanel extends VBox {
 
     /**
      * Format a single {@link Peer} as a human-readable list-item string.
-     * The pattern is {@code "<nodeId>  <address>:<port>"} with a {@code [Validator]}
+     * The pattern is {@code "<nodeId>  <address>:<port>"} with a
+     * {@code [Validator]}
      * suffix appended when {@link Peer#isValidator()} is {@code true}, and an
      * {@code [Offline]} suffix appended when the peer is not connected.
      *
@@ -422,7 +433,8 @@ public class NetworkStatusPanel extends VBox {
     /**
      * Show a simple {@link Alert} dialog with no header text.
      *
-     * @param type    the alert type, e.g. {@link AlertType#INFORMATION} or {@link AlertType#ERROR}
+     * @param type    the alert type, e.g. {@link AlertType#INFORMATION} or
+     *                {@link AlertType#ERROR}
      * @param title   the alert window title
      * @param message the message body to display
      */

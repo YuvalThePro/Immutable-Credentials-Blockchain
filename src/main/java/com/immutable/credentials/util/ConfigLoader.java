@@ -12,6 +12,7 @@ import java.util.List;
 
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.model.Institution;
 import com.immutable.credentials.service.AuthService;
 
 /**
@@ -22,14 +23,15 @@ import com.immutable.credentials.service.AuthService;
  * remain on disk and is never stored in the database.
  *
  * Three public entry points are provided:
- *   loadValidatorList   - build the shared PoA validator list from the database
- *   loadLocalValidator  - resolve the signing-capable local validator, managing
- *                         the on-disk private key
- *   loadNetworkSettings - fetch P2P network parameters from the database
+ * loadValidatorList - build the shared PoA validator list from the database
+ * loadLocalValidator - resolve the signing-capable local validator, managing
+ * the on-disk private key
+ * loadNetworkSettings - fetch P2P network parameters from the database
  */
 public class ConfigLoader {
 
-    private static final String KEYS_DIR = "keys";
+    private static final String Validator_KEYS_DIR = "Validator_keys";
+    private static final String UNIVERSITY_KEYS_DIR = "University_keys";
     private static final int MIN_PORT = 1024;
     private static final int MAX_PORT = 65535;
 
@@ -37,7 +39,8 @@ public class ConfigLoader {
      * Load all active validators from the cloud database.
      * Each validators row is converted to a public-key-only Validator
      * that can verify signatures but cannot produce them.
-     * The validator ID is reused as the display name when no separate name is stored.
+     * The validator ID is reused as the display name when no separate name is
+     * stored.
      *
      * @param authService the connected AuthService used to query the database
      * @return list of public-key-only Validator objects; empty if no rows are found
@@ -50,15 +53,23 @@ public class ConfigLoader {
         return validators;
     }
 
+    public static List<Institution> loadInstitutionList(AuthService authService) throws SQLException {
+        List<Institution> institutions = authService.getAllInstitutions();
+        Logger.log("Loaded " + institutions.size() + " institutions from database");
+        return institutions;
+
+    }
+
     /**
      * Load or generate the full (signing-capable) Validator for the local node.
      * Resolution order:
-     *   1. If a private key file exists in the keys/ directory, load it from disk.
-     *      The matching public key is taken from the already-loaded validators list.
-     *   2. If no private key file exists, generate a new RSA key pair, write the
-     *      private key to keys/VALIDATOR_ID.key, and call authService.upsertValidatorKey
-     *      to store the new public key in the database.
-     * The returned full Validator is upserted into the shared validators list so that
+     * 1. If a private key file exists in the keys/ directory, load it from disk.
+     * The matching public key is taken from the already-loaded validators list.
+     * 2. If no private key file exists, generate a new RSA key pair, write the
+     * private key to keys/VALIDATOR_ID.key, and call authService.upsertValidatorKey
+     * to store the new public key in the database.
+     * The returned full Validator is upserted into the shared validators list so
+     * that
      * the rest of the node sees the correct public key immediately.
      *
      * @param validatorId the ID of the local validator
@@ -81,14 +92,15 @@ public class ConfigLoader {
             }
         }
 
-        // existing may be null when the DB row had a PENDING/invalid public key and was skipped.
+        // existing may be null when the DB row had a PENDING/invalid public key and was
+        // skipped.
         // Fall through to key generation; the real public key will be upserted below.
         if (existing == null) {
             Logger.log("Validator " + validatorId
                     + " not yet active (pending key) - will generate key pair.");
         }
 
-        String keyFile = KEYS_DIR + "/" + validatorId + ".key";
+        String keyFile = Validator_KEYS_DIR + "/" + validatorId + ".key";
         Path keyPath = Paths.get(keyFile);
 
         PublicKey publicKey;
@@ -96,7 +108,8 @@ public class ConfigLoader {
 
         // If the key file exists but this validator's public key was never properly
         // synced to the DB (existing == null means it was skipped as PENDING/invalid),
-        // delete the stale key file and regenerate a fresh pair so DB and disk stay in sync.
+        // delete the stale key file and regenerate a fresh pair so DB and disk stay in
+        // sync.
         if (existing == null && Files.exists(keyPath)) {
             Logger.log("Stale key file found for " + validatorId
                     + " with no matching DB public key - regenerating...");
@@ -137,6 +150,42 @@ public class ConfigLoader {
         }
 
         return full;
+    }
+
+    public static PrivateKey loadLocalUniversityKey(String universityId, String institution, AuthService authService)
+            throws IOException, SQLException {
+
+        String keyFile = UNIVERSITY_KEYS_DIR + "/" + universityId + ".key";
+        Path keyPath = Paths.get(keyFile);
+
+        if (Files.exists(keyPath)) {
+            byte[] keyBytes = Files.readAllBytes(keyPath);
+            String keyBase64 = new String(keyBytes, "UTF-8").trim();
+            Logger.log("Loaded private key for university " + universityId);
+            return CryptoUtils.privateKeyFromBase64(keyBase64);
+        } else {
+            Logger.log("Generating new key pair for university: " + universityId);
+            Files.createDirectories(keyPath.getParent());
+
+            KeyPair keyPair = CryptoUtils.generateKeyPair();
+
+            String privKeyBase64 = CryptoUtils.keyToString(keyPair.getPrivate());
+            String pubKeyBase64 = CryptoUtils.keyToString(keyPair.getPublic());
+
+            try {
+                int numericId = Integer.parseInt(universityId);
+
+                authService.upsertUniversityPublicKey(numericId, institution, pubKeyBase64);
+
+                Files.write(keyPath, privKeyBase64.getBytes("UTF-8"));
+
+                Logger.log("New university identity locked in DB and saved to: " + keyFile);
+                return keyPair.getPrivate();
+
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("University ID must be numeric: " + universityId);
+            }
+        }
     }
 
     /**

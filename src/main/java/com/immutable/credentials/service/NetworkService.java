@@ -2,10 +2,14 @@ package com.immutable.credentials.service;
 
 import com.immutable.credentials.core.Node;
 import com.immutable.credentials.network.Peer;
+import com.immutable.credentials.util.Logger;
 
 import java.util.List;
 
 public class NetworkService {
+
+    private static final long BOOTSTRAP_CONNECT_WAIT_MS = 2500L;
+    private static final long BOOTSTRAP_POLL_MS = 100L;
 
     /** The backend node that owns the P2P network. */
     private final Node node;
@@ -86,5 +90,84 @@ public class NetworkService {
         if (peers == 0)
             return "Isolated \u2013 no peers";
         return "Synced (" + peers + " peer" + (peers == 1 ? "" : "s") + ")";
+    }
+
+    /**
+     * Try to bootstrap the node by connecting to one active validator endpoint.
+     *
+     * @param validators candidate validator endpoints from the database
+     * @return true if at least one validator connection was established
+     */
+    public boolean bootstrap(List<ValidatorEndpoint> validators) {
+        if (validators == null || validators.isEmpty()) {
+            Logger.warn("Bootstrap skipped: no validator endpoints provided.");
+            return false;
+        }
+        if (!isNetworkRunning()) {
+            Logger.warn("Bootstrap skipped: network is not running.");
+            return false;
+        }
+
+        for (ValidatorEndpoint endpoint : validators) {
+            if (endpoint == null) {
+                continue;
+            }
+
+            String host = endpoint.getAddress();
+            int port = endpoint.getPort();
+            if (host == null || host.trim().isEmpty() || port < 1024 || port > 65535) {
+                continue;
+            }
+            if (isSelfEndpoint(endpoint, host, port)) {
+                continue;
+            }
+
+            int baselinePeerCount = getPeerCount();
+            try {
+                connectToPeer(host, port);
+            } catch (RuntimeException e) {
+                Logger.warn("Bootstrap connection attempt failed for "
+                        + endpoint.getValidatorId() + " (" + host + ":" + port + "): " + e.getMessage());
+                continue;
+            }
+
+            if (waitForPeerIncrease(baselinePeerCount, BOOTSTRAP_CONNECT_WAIT_MS)) {
+                Logger.log("Bootstrap connected via validator "
+                        + endpoint.getValidatorId() + " (" + host + ":" + port + ")");
+                return true;
+            }
+        }
+
+        Logger.warn("Bootstrap connection failed. Connect manually.");
+        return false;
+    }
+
+    private boolean waitForPeerIncrease(int baselinePeerCount, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (getPeerCount() > baselinePeerCount) {
+                return true;
+            }
+            try {
+                Thread.sleep(BOOTSTRAP_POLL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return getPeerCount() > baselinePeerCount;
+    }
+
+    private boolean isSelfEndpoint(ValidatorEndpoint endpoint, String host, int port) {
+        // Skip if endpoint points to this node by network endpoint.
+        if (node.getPort() == port && host.equalsIgnoreCase(node.getAddress())) {
+            return true;
+        }
+
+        // Skip if this node is itself the validator in the endpoint list.
+        if (node.getValidator() != null && endpoint.getValidatorId() != null) {
+            return endpoint.getValidatorId().equals(node.getValidator().getValidatorId());
+        }
+        return false;
     }
 }

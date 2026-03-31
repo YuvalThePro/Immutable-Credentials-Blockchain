@@ -3,6 +3,7 @@ package com.immutable.credentials.service;
 import com.immutable.credentials.auth.NodeConfig;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.crypto.CryptoUtils;
+import com.immutable.credentials.model.Institution;
 import com.immutable.credentials.util.Logger;
 
 import java.io.FileInputStream;
@@ -84,7 +85,7 @@ public class AuthService {
 
     private static final String CONFIG_DIR = "config";
     private static final String DB_PROPERTIES_FILE = "database.properties";
-    private static final String QUERY = "SELECT display_name, node_type, validator_id, institution, port, data_dir "
+    private static final String QUERY = "SELECT id, display_name, node_type, validator_id, institution, address, port, is_active, data_dir "
             + "FROM node_users WHERE israeli_id = ? AND password_hash = ?";
 
     private final String jdbcUrl;
@@ -131,21 +132,30 @@ public class AuthService {
                     return null;
                 }
                 return new NodeConfig(
+                        rs.getInt("id"),
                         id,
                         rs.getString("display_name"),
                         rs.getString("node_type"),
                         rs.getString("validator_id"),
                         rs.getString("institution"),
+                        rs.getString("address"),
                         rs.getInt("port"),
+                        rs.getBoolean("is_active"),
                         rs.getString("data_dir"));
             }
         }
     }
 
     /**
-     * Load all active validators from the validators table.
-     * Each row is decoded into a public-key-only Validator (private key is null).
-     * Rows with a missing or unparseable public key are skipped with a warning.
+     * Load all active validator keys, and mark runtime-online validators active.
+     *
+     * <p>
+     * Chain signature validation needs every active validator public key (including
+     * currently offline nodes), while proposer rotation should use only online
+     * validator nodes. This query returns all validators from {@code validators}
+     * and computes whether each has at least one active validator session in
+     * {@code node_users}.
+     * </p>
      *
      * @return list of Validator objects ordered by validator_id; empty if no rows
      *         found
@@ -153,8 +163,16 @@ public class AuthService {
      */
     public List<Validator> loadValidators() throws SQLException {
         List<Validator> result = new ArrayList<>();
-        String sql = "SELECT validator_id, institution, public_key "
-                + "FROM validators ORDER BY validator_id";
+        String sql = "SELECT v.validator_id, v.institution, v.public_key, TRUE AS online "
+                + "FROM validators v "
+                + "WHERE v.is_active = TRUE "
+                + "AND EXISTS ("
+                + "    SELECT 1 FROM node_users n "
+                + "    WHERE n.validator_id = v.validator_id "
+                + "    AND n.node_type = 'VALIDATOR' "
+                + "    AND n.is_active = TRUE"
+                + ") "
+                + "ORDER BY v.validator_id";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
                 PreparedStatement ps = conn.prepareStatement(sql);
                 ResultSet rs = ps.executeQuery()) {
@@ -169,7 +187,11 @@ public class AuthService {
                 }
                 try {
                     PublicKey publicKey = CryptoUtils.publicKeyFromBase64(pubKeyBase64);
-                    result.add(new Validator(validatorId, validatorId, publicKey, institution));
+                    Validator validator = new Validator(validatorId, validatorId, publicKey, institution);
+                    if (rs.getBoolean("online")) {
+                        validator.activate();
+                    }
+                    result.add(validator);
                 } catch (Exception e) {
                     Logger.log("Warning: Failed to decode public key for validator "
                             + validatorId + ": " + e.getMessage());
@@ -177,6 +199,95 @@ public class AuthService {
             }
         }
         return result;
+    }
+
+    public List<Institution> getAllInstitutions() throws SQLException {
+        List<Institution> list = new ArrayList<>();
+        String sql = "SELECT id, institution, public_key FROM institutions WHERE public_key IS NOT NULL";
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                String name = rs.getString("institution");
+                String pubKey = rs.getString("public_key");
+
+                if (pubKey != null && pubKey.length() > 20) {
+                    String shortKey = pubKey.substring(0, 10) + "..." + pubKey.substring(pubKey.length() - 10);
+                    Logger.log("[DB-CHECK] Institution: " + name + " | Key in DB: [" + shortKey + "]");
+                }
+
+                list.add(new Institution(rs.getInt("id"), name, pubKey));
+            }
+        }
+        return list;
+    }
+
+    /**
+     * Load network endpoints for active validator nodes.
+     *
+     * @return list of active validator endpoints ordered by validator_id
+     * @throws SQLException if a database error occurs
+     */
+    public List<ValidatorEndpoint> loadActiveValidatorEndpoints() throws SQLException {
+        List<ValidatorEndpoint> result = new ArrayList<>();
+        String sql = "SELECT validator_id, port, address "
+                + "FROM node_users n "
+                + "WHERE n.node_type = 'VALIDATOR' "
+                + "AND n.validator_id IS NOT NULL "
+                + "AND n.is_active = TRUE "
+                + "AND n.port IS NOT NULL "
+                + "AND n.address IS NOT NULL "
+                + "ORDER BY validator_id";
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String validatorId = rs.getString("validator_id");
+                int port = rs.getInt("port");
+                String address = rs.getString("address");
+                result.add(new ValidatorEndpoint(validatorId, address, port));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Mark the given node as online and refresh its endpoint and heartbeat fields.
+     *
+     * @param nodeUserId node_users.id primary key
+     * @param address    reachable host/address for incoming P2P connections
+     * @param port       listening port
+     * @throws SQLException if a database error occurs
+     */
+    public void markNodeOnline(int nodeUserId, String address, int port) throws SQLException {
+        String sql = "UPDATE node_users "
+                + "SET is_active = TRUE, address = ?, port = ? "
+                + "WHERE id = ?";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, address);
+            ps.setInt(2, port);
+            ps.setInt(3, nodeUserId);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Mark the given node as offline.
+     *
+     * @param nodeUserId node_users.id primary key
+     * @throws SQLException if a database error occurs
+     */
+    public void markNodeOffline(int nodeUserId) throws SQLException {
+        String sql = "UPDATE node_users SET is_active = FALSE WHERE id = ?";
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, nodeUserId);
+            ps.executeUpdate();
+        }
     }
 
     /**
@@ -236,6 +347,28 @@ public class AuthService {
             ps.setString(2, institution);
             ps.setString(3, publicKeyBase64);
             ps.executeUpdate();
+        }
+    }
+
+    public void upsertUniversityPublicKey(int universityId, String institution, String publicKeyBase64)
+            throws SQLException {
+        String sql = "UPDATE institutions SET public_key = ?, institution = ? " +
+                "WHERE id = ? AND (public_key IS NULL OR public_key = '')";
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, publicKeyBase64);
+            pstmt.setString(2, institution);
+            pstmt.setInt(3, universityId);
+
+            int rowsAffected = pstmt.executeUpdate();
+
+            if (rowsAffected == 0) {
+                Logger.warn("Security Alert: Key overwrite attempt or invalid ID: " + universityId);
+                throw new SQLException("Cannot overwrite existing public key or ID not found.");
+            }
+
+            Logger.log("Public key locked for institution ID: " + universityId);
         }
     }
 

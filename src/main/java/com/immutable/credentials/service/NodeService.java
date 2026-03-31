@@ -1,8 +1,13 @@
 package com.immutable.credentials.service;
 
 import com.immutable.credentials.core.Node;
+import com.immutable.credentials.model.Institution;
 
 import java.io.IOException;
+
+import com.immutable.credentials.consensus.ProofOfAuthority;
+import com.immutable.credentials.consensus.Validator;
+import java.util.List;
 
 public class NodeService {
 
@@ -117,5 +122,31 @@ public class NodeService {
      */
     public boolean isRunning() {
         return node.isRunning();
+    }
+
+    /**
+     * Synchronize the authorized validator list with a fresh copy from the
+     * database. Delegates to {@link Node#syncValidators(List)}.
+     *
+     * @param fresh the up-to-date validator list; must not be {@code null} or empty
+     * @throws IllegalArgumentException if {@code fresh} is {@code null} or empty
+     */
+    public void syncValidators(List<Validator> fresh) {
+        node.syncValidators(fresh);
+    }
+
+    /**
+     * Synchronize the authorized institutions list with a fresh copy from the
+     * database. Delegates to {@link ProofOfAuthority#syncInstitutions(List)}.
+     * Called periodically by the UI sync scheduler so that newly registered
+     * institutions are recognized without restarting the node.
+     *
+     * @param fresh the up-to-date institution list; must not be {@code null} or
+     *              empty
+     * @throws IllegalArgumentException if {@code fresh} is {@code null} or empty
+     */
+
+    public void syncInstitutions(List<Institution> fresh) {
+        node.syncInstitutions(fresh);
     }
 }

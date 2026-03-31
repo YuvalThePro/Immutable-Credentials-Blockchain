@@ -170,7 +170,6 @@ public class AuthService {
                 + "    SELECT 1 FROM node_users n "
                 + "    WHERE n.validator_id = v.validator_id "
                 + "    AND n.node_type = 'VALIDATOR' "
-                + "    AND n.is_active = TRUE"
                 + ") "
                 + "ORDER BY v.validator_id";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);

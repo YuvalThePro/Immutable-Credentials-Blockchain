@@ -882,14 +882,39 @@ public class Node {
      * @param newChain the replacement chain
      */
     public synchronized boolean replaceChain(ArrayList<Block> newChain) {
-        if (newChain.size() <= blockchain.size()) {
+        java.util.Map<String, PublicKey> pubKeyMap = buildValidatorPubKeyMap();
+        java.util.List<Validator> activeValidators = getActiveValidators();
+
+        int currentScore = BlockScoring.computeChainScore(blockchain.getChain(), activeValidators, pubKeyMap);
+        int newScore = BlockScoring.computeChainScore(newChain, activeValidators, pubKeyMap);
+
+        if (newScore <= currentScore) {
+            Logger.log("Chain replacement rejected: incoming score (" + newScore
+                    + ") <= current score (" + currentScore + ")");
             return false;
         }
 
         blockchain.replaceChain(newChain);
         credentialIndex.rebuildIndex(blockchain);
-        Logger.log("Chain successfully replaced. New height: " + blockchain.size());
+        Logger.log("Chain replaced via score: " + currentScore + " -> " + newScore
+                + ", new height: " + blockchain.size());
         return true;
+    }
+
+    private java.util.Map<String, PublicKey> buildValidatorPubKeyMap() {
+        java.util.Map<String, PublicKey> map = new java.util.HashMap<>();
+        for (Validator v : proofOfAuthority.getAuthorizedValidators()) {
+            map.put(v.getValidatorId(), v.getPublicKey());
+        }
+        return map;
+    }
+
+    private java.util.List<Validator> getActiveValidators() {
+        java.util.List<Validator> active = new java.util.ArrayList<>();
+        for (Validator v : proofOfAuthority.getAuthorizedValidators()) {
+            if (v.isActive()) active.add(v);
+        }
+        return active;
     }
 
     /**

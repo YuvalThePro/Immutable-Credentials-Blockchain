@@ -678,8 +678,7 @@ public class P2PNetwork {
 			Blockchain incomingChain = new Blockchain(JsonSerializer.jsonToChain(payload));
 			if (!node.validateIncomingChain(incomingChain))
 				return;
-			if (incomingChain.getChain().size() <= node.getChainHeight())
-				return;
+			// Score-based comparison is handled inside node.replaceChain()
 			node.replaceChain(incomingChain.getChain());
 		} finally {
 			isSyncing.set(false);

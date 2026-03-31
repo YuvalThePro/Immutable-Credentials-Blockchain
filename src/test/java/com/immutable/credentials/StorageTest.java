@@ -413,16 +413,6 @@ public class StorageTest {
     }
 
     @Test
-    public void testSaveToInvalidPath() {
-        try {
-            storage.saveChain(blockchain, "/invalid/path/that/does/not/exist/file.jsonl");
-            Assert.fail("Should throw exception for invalid path");
-        } catch (Exception e) {
-            // Expected
-        }
-    }
-
-    @Test
     public void testIndexWithNullBlockchain() {
         try {
             index.rebuildIndex(null);

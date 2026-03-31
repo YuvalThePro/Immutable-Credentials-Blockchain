@@ -2,7 +2,6 @@ package com.immutable.credentials.core;
 
 import java.security.PublicKey;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 
 import com.immutable.credentials.crypto.CryptoUtils;

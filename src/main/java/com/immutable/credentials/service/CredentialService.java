@@ -5,7 +5,6 @@ import com.immutable.credentials.crypto.CryptoUtils;
 import com.immutable.credentials.model.Credential;
 import com.immutable.credentials.util.Logger;
 
-import java.security.PrivateKey;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;

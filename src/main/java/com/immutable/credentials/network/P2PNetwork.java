@@ -20,8 +20,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.immutable.credentials.util.Logger;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 

@@ -5,8 +5,6 @@ import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.core.Blockchain;
 import com.immutable.credentials.crypto.CryptoUtils;
 import com.immutable.credentials.model.Block;
-import com.immutable.credentials.model.Credential;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,9 +20,9 @@ import java.util.Map;
  * Unit tests for the BlockScoring engine.
  *
  * Scoring model:
- *   IN_TURN_SCORE  = 2  (expected round-robin validator)
- *   OUT_OF_TURN_SCORE = 1  (any other authorized validator)
- *   VOTE_BONUS     = 1  per verified voter attestation
+ * IN_TURN_SCORE = 2 (expected round-robin validator)
+ * OUT_OF_TURN_SCORE = 1 (any other authorized validator)
+ * VOTE_BONUS = 1 per verified voter attestation
  */
 public class BlockScoringTest {
 
@@ -176,7 +174,8 @@ public class BlockScoringTest {
         Block b2 = makeSignedBlock(2, b1.getHash(), VAL_A, keyA); // out-of-turn
         blockchain.addBlock(b2);
 
-        // Expected: b1 = 2 (in-turn) + 1 (attestation) = 3; b2 = 1 (out-of-turn) = 1 => total = 4
+        // Expected: b1 = 2 (in-turn) + 1 (attestation) = 3; b2 = 1 (out-of-turn) = 1 =>
+        // total = 4
         int score = BlockScoring.computeChainScore(blockchain.getChain(), activeValidators, pubKeyMap);
         Assert.assertEquals("Chain score should be 4", 4, score);
     }
@@ -195,11 +194,13 @@ public class BlockScoringTest {
         legitimateChain.add(legit1);
         // legit score = 0 (genesis) + 2 (in-turn) + 2 (attestations) = 4
 
-        // Attacker chain: 3 blocks, all out-of-turn, no attestations (compromised single key).
+        // Attacker chain: 3 blocks, all out-of-turn, no attestations (compromised
+        // single key).
         // Index 1 expects VAL_B, index 2 expects VAL_C — VAL_A is out-of-turn for both.
-        // Index 3 would be VAL_A's turn (3 % 3 == 0), so we stop at index 2 to keep scores unambiguous.
+        // Index 3 would be VAL_A's turn (3 % 3 == 0), so we stop at index 2 to keep
+        // scores unambiguous.
         Block atk1 = makeSignedBlock(1, genesis.getHash(), VAL_A, keyA); // out-of-turn
-        Block atk2 = makeSignedBlock(2, atk1.getHash(), VAL_A, keyA);    // out-of-turn
+        Block atk2 = makeSignedBlock(2, atk1.getHash(), VAL_A, keyA); // out-of-turn
 
         List<Block> attackerChain = new ArrayList<>();
         attackerChain.add(genesis);

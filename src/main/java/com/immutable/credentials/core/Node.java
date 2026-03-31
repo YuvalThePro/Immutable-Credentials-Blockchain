@@ -453,10 +453,13 @@ public class Node {
         }
 
         // Round-robin check: only the designated proposer seals
+        int activeCount = getActiveValidators().size();
         int nextIndex = blockchain.size();
         Validator currentProposer = proofOfAuthority.getCurrentProposer(nextIndex);
         if (currentProposer == null
-                || !currentProposer.getValidatorId().equals(validator.getValidatorId())) {
+                || !currentProposer.getValidatorId().equals(validator.getValidatorId())
+                || BlockScoring.isProposerInCooldown(validator.getValidatorId(), getChain(), activeCount)) {
+            Logger.log("Cannot propose block: I am currently in cooldown.");
             return; // not our turn
         }
 
@@ -514,6 +517,12 @@ public class Node {
             return; // only validators participate in voting
         }
 
+        int activeCount = getActiveValidators().size();
+        String proposerId = block.getValidatorId();
+        if (BlockScoring.isProposerInCooldown(proposerId, getChain(), activeCount)) {
+            Logger.warn("SECURITY REJECT: Validator " + proposerId + " is in cooldown! Ignoring block.");
+            return;
+        }
         // Validate against PoA consensus rules
         Block previousBlock = blockchain.getBlock(block.getIndex() - 1);
         boolean valid = proofOfAuthority.enforceConsensusRules(block, previousBlock);
@@ -563,7 +572,7 @@ public class Node {
      * @throws IllegalArgumentException if blockHash or voterId is null
      */
     public void handleBlockVote(int blockIndex, String blockHash, String voterId,
-                                boolean approve, String voteSignature) {
+            boolean approve, String voteSignature) {
         if (blockHash == null) {
             throw new IllegalArgumentException("Block hash cannot be null");
         }
@@ -643,8 +652,8 @@ public class Node {
             }
 
             // Embed all approval attestations into the block before finalizing
-            java.util.Map<String, String> attestations =
-                    proofOfAuthority.getApprovalAttestations(consensusBlock.getHash());
+            java.util.Map<String, String> attestations = proofOfAuthority
+                    .getApprovalAttestations(consensusBlock.getHash());
             for (java.util.Map.Entry<String, String> entry : attestations.entrySet()) {
                 consensusBlock.addVoterAttestation(entry.getKey(), entry.getValue());
             }
@@ -912,7 +921,8 @@ public class Node {
     private java.util.List<Validator> getActiveValidators() {
         java.util.List<Validator> active = new java.util.ArrayList<>();
         for (Validator v : proofOfAuthority.getAuthorizedValidators()) {
-            if (v.isActive()) active.add(v);
+            if (v.isActive())
+                active.add(v);
         }
         return active;
     }

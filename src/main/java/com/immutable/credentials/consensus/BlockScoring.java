@@ -11,9 +11,9 @@ import java.util.Map;
  * Computes per-block and per-chain scores used to select the canonical chain.
  *
  * Scoring model:
- *   IN_TURN_SCORE  = 2  (block proposed by the expected round-robin validator)
- *   OUT_OF_TURN_SCORE = 1  (valid block but not the expected proposer)
- *   VOTE_BONUS     = 1  per verified voter attestation recorded in the block
+ * IN_TURN_SCORE = 2 (block proposed by the expected round-robin validator)
+ * OUT_OF_TURN_SCORE = 1 (valid block but not the expected proposer)
+ * VOTE_BONUS = 1 per verified voter attestation recorded in the block
  *
  * Chain selection: the chain with the highest total score wins.
  * On a tie, the defending (current) chain is kept (defender advantage).
@@ -28,18 +28,21 @@ public class BlockScoring {
     public static final int OUT_OF_TURN_SCORE = 1;
     public static final int VOTE_BONUS = 1;
 
-    private BlockScoring() {}
+    private BlockScoring() {
+    }
 
     /**
      * Compute the score of a single block.
      *
      * @param block               the block to score
-     * @param expectedProposerId  the validator ID that round-robin assigns to this index
-     * @param validatorPublicKeys map of validatorId -> PublicKey for attestation verification
+     * @param expectedProposerId  the validator ID that round-robin assigns to this
+     *                            index
+     * @param validatorPublicKeys map of validatorId -> PublicKey for attestation
+     *                            verification
      * @return the block score (0 for genesis block at index 0)
      */
     public static int computeBlockScore(Block block, String expectedProposerId,
-                                        Map<String, PublicKey> validatorPublicKeys) {
+            Map<String, PublicKey> validatorPublicKeys) {
         if (block.getIndex() == 0) {
             return 0; // genesis is unscored
         }
@@ -63,13 +66,15 @@ public class BlockScoring {
      * Compute the total score of a chain.
      *
      * @param chain               ordered list of blocks (index 0 = genesis)
-     * @param activeValidators    ordered list of active validators used for round-robin
-     * @param validatorPublicKeys map of validatorId -> PublicKey for attestation verification
+     * @param activeValidators    ordered list of active validators used for
+     *                            round-robin
+     * @param validatorPublicKeys map of validatorId -> PublicKey for attestation
+     *                            verification
      * @return total chain score (sum of individual block scores)
      */
     public static int computeChainScore(List<Block> chain,
-                                        List<Validator> activeValidators,
-                                        Map<String, PublicKey> validatorPublicKeys) {
+            List<Validator> activeValidators,
+            Map<String, PublicKey> validatorPublicKeys) {
         if (chain == null || chain.isEmpty() || activeValidators == null || activeValidators.isEmpty()) {
             return 0;
         }
@@ -77,7 +82,8 @@ public class BlockScoring {
         int total = 0;
         for (Block block : chain) {
             int idx = block.getIndex();
-            if (idx == 0) continue; // genesis contributes 0
+            if (idx == 0)
+                continue; // genesis contributes 0
             String expectedProposerId = activeValidators.get(idx % activeValidators.size()).getValidatorId();
             total += computeBlockScore(block, expectedProposerId, validatorPublicKeys);
         }
@@ -97,5 +103,36 @@ public class BlockScoring {
             return false;
         }
         return CryptoUtils.verifySignature(blockHash, signature, voterPublicKey);
+    }
+
+    /**
+     * Checks if a validator is currently in cooldown and forbidden from proposing a
+     * new block.
+     * * @param proposerId The ID of the validator proposing the block
+     * 
+     * @param currentChain          The current local blockchain
+     * @param totalActiveValidators The total number of authorized validators in the
+     *                              network
+     * @return true if the validator is in cooldown, false if they are allowed to
+     *         propose
+     */
+    public static boolean isProposerInCooldown(String proposerId, List<Block> currentChain, int totalActiveValidators) {
+        if (totalActiveValidators <= 2) {
+            return false;
+        }
+
+        int cooldownLimit = totalActiveValidators / 2;
+        int blocksToCheck = Math.min(cooldownLimit, currentChain.size());
+        int startIndex = currentChain.size() - 1;
+
+        for (int i = startIndex; i > startIndex - blocksToCheck; i--) {
+            Block currentBlock = currentChain.get(i);
+
+            if (proposerId.equals(currentBlock.getValidatorId())) {
+                return true;
+            }
+
+        }
+        return false;
     }
 }

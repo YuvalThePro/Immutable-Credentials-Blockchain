@@ -10,6 +10,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.immutable.credentials.auth.CredentialValidator;
+import com.immutable.credentials.consensus.BlockScoring;
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.model.Block;
@@ -522,11 +523,21 @@ public class Node {
             proofOfAuthority.proposeBlock(block);
         }
 
-        // Record our own vote
-        proofOfAuthority.recordVote(
-                block.getIndex(), block.getHash(), validator.getPublicKey(), valid);
+        // Generate our own vote signature when approving
+        String voteSignature = null;
+        if (valid) {
+            try {
+                voteSignature = validator.signData(block.getHash());
+            } catch (Exception e) {
+                Logger.warn("Failed to sign vote for block #" + block.getIndex() + ": " + e.getMessage());
+            }
+        }
 
-        // Broadcast vote to peers
+        // Record our own vote (with signature so it becomes an attestation)
+        proofOfAuthority.recordVote(
+                block.getIndex(), block.getHash(), validator.getPublicKey(), valid, voteSignature);
+
+        // Broadcast vote to peers (P2PNetwork will include the signature)
         if (network != null) {
             network.broadcastBlockVote(block.getIndex(), block.getHash(), valid);
         }
@@ -544,13 +555,15 @@ public class Node {
      * Handle a BLOCK_VOTE message received from a peer validator.
      * Records the vote and checks if consensus has been reached.
      *
-     * @param blockIndex the index of the block being voted on
-     * @param blockHash  the hash of the proposed block
-     * @param voterId    the validator ID of the voter
-     * @param approve    true if the voter approves, false if they reject
+     * @param blockIndex    the index of the block being voted on
+     * @param blockHash     the hash of the proposed block
+     * @param voterId       the validator ID of the voter
+     * @param approve       true if the voter approves, false if they reject
+     * @param voteSignature Base64-encoded RSA signature of blockHash (may be null)
      * @throws IllegalArgumentException if blockHash or voterId is null
      */
-    public void handleBlockVote(int blockIndex, String blockHash, String voterId, boolean approve) {
+    public void handleBlockVote(int blockIndex, String blockHash, String voterId,
+                                boolean approve, String voteSignature) {
         if (blockHash == null) {
             throw new IllegalArgumentException("Block hash cannot be null");
         }
@@ -570,9 +583,9 @@ public class Node {
             return;
         }
 
-        // Record the vote in the PoA engine
+        // Record the vote in the PoA engine (with attestation signature)
         boolean recorded = proofOfAuthority.recordVote(
-                blockIndex, blockHash, voter.getPublicKey(), approve);
+                blockIndex, blockHash, voter.getPublicKey(), approve, voteSignature);
         if (!recorded) {
             Logger.warn("Vote from " + voterId + " on block #" + blockIndex + " was not recorded");
             return;
@@ -627,6 +640,13 @@ public class Node {
             if (consensusBlock.getPreviousHash() == null
                     || !consensusBlock.getPreviousHash().equals(expectedPreviousHash)) {
                 return;
+            }
+
+            // Embed all approval attestations into the block before finalizing
+            java.util.Map<String, String> attestations =
+                    proofOfAuthority.getApprovalAttestations(consensusBlock.getHash());
+            for (java.util.Map.Entry<String, String> entry : attestations.entrySet()) {
+                consensusBlock.addVoterAttestation(entry.getKey(), entry.getValue());
             }
 
             Logger.log("[DEBUG] checkAndFinalizeConsensus: About to add block idx=" + consensusBlock.getIndex()

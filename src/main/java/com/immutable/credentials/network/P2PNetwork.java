@@ -398,11 +398,21 @@ public class P2PNetwork {
 		JSONObject payload = new JSONObject();
 		payload.put("blockIndex", blockIndex);
 		payload.put("blockHash", blockHash);
-		String voterId = node.getValidator() != null
-				? node.getValidator().getValidatorId()
-				: node.getId();
+		Validator v = node.getValidator();
+		String voterId = v != null ? v.getValidatorId() : node.getId();
 		payload.put("voterId", voterId);
 		payload.put("approve", approve);
+
+		// Sign the blockHash so the attestation is cryptographically verifiable
+		if (approve && v != null && v.hasPrivateKey()) {
+			try {
+				String voteSignature = v.signData(blockHash);
+				payload.put("voteSignature", voteSignature);
+			} catch (Exception e) {
+				// Non-fatal: broadcast the vote without a signature
+			}
+		}
+
 		NetworkMessage message = new NetworkMessage(MessageType.BLOCK_VOTE, node.getId(), payload);
 		seenMessageIds.add(message.getMessageId());
 		broadcastMessage(message, null);
@@ -589,7 +599,8 @@ public class P2PNetwork {
 		String blockHash = payload.getString("blockHash");
 		String voterId = payload.getString("voterId");
 		boolean approve = payload.getBoolean("approve");
-		node.handleBlockVote(blockIndex, blockHash, voterId, approve);
+		String voteSignature = payload.optString("voteSignature", null);
+		node.handleBlockVote(blockIndex, blockHash, voterId, approve, voteSignature);
 		broadcastMessage(message, connection.peer.getNodeId());
 	}
 

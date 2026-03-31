@@ -17,6 +17,8 @@ public class ProofOfAuthority {
     private final Map<Integer, List<Block>> pendingBlocks;
     // Updated to track votes by block hash for accuracy
     private final Map<String, Map<String, Boolean>> votesByHash;
+    // Stores the cryptographic signature each approving voter produced (blockHash -> voterId -> sig)
+    private final Map<String, Map<String, String>> voteSignaturesByHash;
 
     /**
      * Initialize the PoA consensus engine with authorized validators.
@@ -31,6 +33,7 @@ public class ProofOfAuthority {
         this.authorizedValidators = new ArrayList<>(validators);
         this.pendingBlocks = new ConcurrentHashMap<>();
         this.votesByHash = new ConcurrentHashMap<>();
+        this.voteSignaturesByHash = new ConcurrentHashMap<>();
     }
 
     /**
@@ -160,6 +163,22 @@ public class ProofOfAuthority {
      */
     public boolean recordVote(int blockIndex, String blockHash, PublicKey validatorPublicKey, boolean approve)
             throws IllegalArgumentException {
+        return recordVote(blockIndex, blockHash, validatorPublicKey, approve, null);
+    }
+
+    /**
+     * Record a validator's vote on a proposed block, including their cryptographic attestation.
+     *
+     * @param blockIndex         the index of the block being voted on
+     * @param blockHash          the hash of the specific block candidate
+     * @param validatorPublicKey the public key of the voting validator
+     * @param approve            true to approve, false to reject
+     * @param voteSignature      Base64-encoded RSA signature of the block hash (may be null)
+     * @return true if vote was recorded, false if validator not authorized
+     */
+    public boolean recordVote(int blockIndex, String blockHash, PublicKey validatorPublicKey,
+                              boolean approve, String voteSignature)
+            throws IllegalArgumentException {
         if (validatorPublicKey == null || blockHash == null)
             throw new IllegalArgumentException("Required parameters are null");
 
@@ -169,8 +188,25 @@ public class ProofOfAuthority {
 
         votesByHash.computeIfAbsent(blockHash, k -> new HashMap<>()).put(v.getValidatorId(), approve);
 
+        if (approve && voteSignature != null && !voteSignature.trim().isEmpty()) {
+            voteSignaturesByHash.computeIfAbsent(blockHash, k -> new HashMap<>())
+                    .put(v.getValidatorId(), voteSignature);
+        }
+
         Logger.log("[POA] Vote recorded for Block #" + blockIndex + " (" + (approve ? "APPROVE" : "REJECT") + ")");
         return true;
+    }
+
+    /**
+     * Return the attestation map (voterId -> voteSignature) for all approving voters of a block.
+     * Used to embed attestations into the finalized block before it is added to the chain.
+     *
+     * @param blockHash the hash of the finalized block
+     * @return map of voterId -> Base64 vote signature; empty if none recorded
+     */
+    public Map<String, String> getApprovalAttestations(String blockHash) {
+        Map<String, String> sigs = voteSignaturesByHash.get(blockHash);
+        return sigs != null ? new HashMap<>(sigs) : new HashMap<>();
     }
 
     /**
@@ -219,6 +255,7 @@ public class ProofOfAuthority {
         if (candidates != null) {
             for (Block b : candidates) {
                 votesByHash.remove(b.getHash());
+                voteSignaturesByHash.remove(b.getHash());
             }
         }
     }

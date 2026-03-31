@@ -47,16 +47,7 @@ public class Blockchain {
      * @return the genesis block
      */
     private Block createGenesisBlock() {
-        Credential genesisCredential = new Credential(
-                "Genesis Student",
-                new Date(0),
-                "Genesis Degree",
-                "System",
-                "GENESIS-000",
-                "GENESIS-CRED-000");
-
         ArrayList<Credential> genesisCredentials = new ArrayList<>();
-        genesisCredentials.add(genesisCredential);
         // timestamp=0 makes every node produce an identical genesis hash
         return new Block(0, 0L, "0", genesisCredentials, "SYSTEM", "GENESIS");
     }

@@ -93,9 +93,28 @@ public class BlockchainService {
     }
 
     /**
+     * Compute and return the total score of the local chain.
+     *
+     * @return the cumulative chain score
+     */
+    public int getChainScore() {
+        return node.getChainScore();
+    }
+
+    /**
+     * Compute and return the score of a single block.
+     *
+     * @param block the block to score; must not be null
+     * @return the block score (0 for the genesis block)
+     */
+    public int getBlockScore(Block block) {
+        return node.getBlockScore(block);
+    }
+
+    /**
      * Return the total number of credentials stored across all blocks on
      * the local chain, excluding the genesis credential.
-     * 
+     *
      * @return the total credential count; 0 if only the genesis block exists
      */
     public int getTotalCredentialCount() {

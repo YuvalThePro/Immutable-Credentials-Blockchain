@@ -148,7 +148,12 @@ public class MainWindow extends Application {
 
         this.authService = authService;
         this.nodeConfig = nodeConfig;
-        initServices(nodeConfig);
+        try {
+            initServices(nodeConfig);
+        } catch (RuntimeException e) {
+            showStartupError("Failed to initialise node:\n" + e.getMessage());
+            return;
+        }
 
         try {
             nodeService.startNode();

@@ -205,6 +205,12 @@ public class ConfigLoader {
 
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("University ID must be numeric: " + universityId);
+        } catch (SQLException e) {
+            throw new IOException(
+                    "Private key file is missing for university " + universityId
+                            + " and a public key is already registered in the database. "
+                            + "Please restore the private key file to: " + keyFile,
+                    e);
         }
     }
 

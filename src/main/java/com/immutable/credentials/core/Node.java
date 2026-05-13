@@ -926,6 +926,17 @@ public class Node {
         return true;
     }
 
+    public int getChainScore() {
+        return BlockScoring.computeChainScore(blockchain.getChain(), getActiveValidators(), buildValidatorPubKeyMap());
+    }
+
+    public int getBlockScore(Block block) {
+        java.util.List<Validator> active = getActiveValidators();
+        if (active.isEmpty() || block.getIndex() == 0) return 0;
+        String expectedProposerId = active.get(block.getIndex() % active.size()).getValidatorId();
+        return BlockScoring.computeBlockScore(block, expectedProposerId, buildValidatorPubKeyMap());
+    }
+
     /**
      * Validate an incoming chain against consensus rules and cooldown restrictions.
      * Checks that each block in the chain is proposed by an active validator and

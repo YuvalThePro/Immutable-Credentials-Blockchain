@@ -148,7 +148,12 @@ public class MainWindow extends Application {
 
         this.authService = authService;
         this.nodeConfig = nodeConfig;
-        initServices(nodeConfig);
+        try {
+            initServices(nodeConfig);
+        } catch (RuntimeException e) {
+            showStartupError("Failed to initialise node:\n" + e.getMessage());
+            return;
+        }
 
         try {
             nodeService.startNode();
@@ -247,7 +252,7 @@ public class MainWindow extends Application {
                 }
                 ProofOfAuthority poa = new ProofOfAuthority(validators);
                 if ("university".equals(nodeType)) {
-                    ConfigLoader.loadLocalUniversityKey(runtimeNodeId, dbConfig.getInstitution(), authService);
+                    ConfigLoader.loadLocalUniversityKey(runtimeNodeId, dbConfig.getInstitution(), institutions, authService);
 
                     node = new Node(runtimeNodeId, address, port, poa, storageFile, true);
                 } else {
@@ -330,7 +335,7 @@ public class MainWindow extends Application {
      * @return a configured TabPane with all panels attached
      */
     private TabPane buildTabPane() {
-        issuePanel = new IssueCredentialPanel(credentialService, nodeService, authService);
+        issuePanel = new IssueCredentialPanel(credentialService, nodeService, authService, institutions);
         verifyPanel = new VerifyCredentialPanel(credentialService);
         blockchainPanel = new BlockchainViewerPanel(blockchainService);
         networkPanel = new NetworkStatusPanel(networkService, nodeService, getDisplayNodeId());

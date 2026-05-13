@@ -415,6 +415,103 @@ public class BlockchainTest {
         Assert.assertFalse("Should fail with unauthorized validator", invalidChain.validateChain(validatorKeys));
     }
 
+    // ========== Voter Attestation Validation Tests ==========
+
+    @Test
+    public void testValidateChainWithValidAttestations() {
+        Block genesis = blockchain.getLatestBlock();
+        String genesisSignature = CryptoUtils.signData(genesis.getHash(), validatorKeyPair.getPrivate());
+        Block signedGenesis = new Block(genesis, genesisSignature);
+
+        Blockchain chain = new Blockchain(new ArrayList<>());
+        chain.addBlock(signedGenesis);
+
+        ArrayList<Credential> creds = new ArrayList<>();
+        Block block = new Block(1, signedGenesis.getHash(), creds, "VALIDATOR_001");
+        String blockSignature = CryptoUtils.signData(block.getHash(), validatorKeyPair.getPrivate());
+        Block signedBlock = new Block(block, blockSignature);
+
+        // Attach a valid attestation from VALIDATOR_001
+        String attestationSig = CryptoUtils.signData(signedBlock.getHash(), validatorKeyPair.getPrivate());
+        signedBlock.addVoterAttestation("VALIDATOR_001", attestationSig);
+
+        chain.addBlock(signedBlock);
+
+        Assert.assertTrue("Chain with valid attestations should pass validation",
+                chain.validateChain(validatorKeys));
+    }
+
+    @Test
+    public void testValidateChainWithForgedAttestation() {
+        Block genesis = blockchain.getLatestBlock();
+        String genesisSignature = CryptoUtils.signData(genesis.getHash(), validatorKeyPair.getPrivate());
+        Block signedGenesis = new Block(genesis, genesisSignature);
+
+        Blockchain chain = new Blockchain(new ArrayList<>());
+        chain.addBlock(signedGenesis);
+
+        ArrayList<Credential> creds = new ArrayList<>();
+        Block block = new Block(1, signedGenesis.getHash(), creds, "VALIDATOR_001");
+        String blockSignature = CryptoUtils.signData(block.getHash(), validatorKeyPair.getPrivate());
+        Block signedBlock = new Block(block, blockSignature);
+
+        // Forge an attestation using a different key pair
+        KeyPair attackerKeyPair = CryptoUtils.generateKeyPair();
+        String forgedSig = CryptoUtils.signData(signedBlock.getHash(), attackerKeyPair.getPrivate());
+        signedBlock.addVoterAttestation("VALIDATOR_001", forgedSig); // wrong key for this voter
+
+        chain.addBlock(signedBlock);
+
+        Assert.assertFalse("Chain with forged attestation should fail validation",
+                chain.validateChain(validatorKeys));
+    }
+
+    @Test
+    public void testValidateChainWithUnknownVoterAttestation() {
+        Block genesis = blockchain.getLatestBlock();
+        String genesisSignature = CryptoUtils.signData(genesis.getHash(), validatorKeyPair.getPrivate());
+        Block signedGenesis = new Block(genesis, genesisSignature);
+
+        Blockchain chain = new Blockchain(new ArrayList<>());
+        chain.addBlock(signedGenesis);
+
+        ArrayList<Credential> creds = new ArrayList<>();
+        Block block = new Block(1, signedGenesis.getHash(), creds, "VALIDATOR_001");
+        String blockSignature = CryptoUtils.signData(block.getHash(), validatorKeyPair.getPrivate());
+        Block signedBlock = new Block(block, blockSignature);
+
+        // Attestation from a validator not in the key map
+        KeyPair unknownKeyPair = CryptoUtils.generateKeyPair();
+        String unknownSig = CryptoUtils.signData(signedBlock.getHash(), unknownKeyPair.getPrivate());
+        signedBlock.addVoterAttestation("UNKNOWN_VALIDATOR", unknownSig);
+
+        chain.addBlock(signedBlock);
+
+        Assert.assertFalse("Chain with unknown voter attestation should fail validation",
+                chain.validateChain(validatorKeys));
+    }
+
+    @Test
+    public void testValidateChainEmptyAttestationsIsValid() {
+        Block genesis = blockchain.getLatestBlock();
+        String genesisSignature = CryptoUtils.signData(genesis.getHash(), validatorKeyPair.getPrivate());
+        Block signedGenesis = new Block(genesis, genesisSignature);
+
+        Blockchain chain = new Blockchain(new ArrayList<>());
+        chain.addBlock(signedGenesis);
+
+        ArrayList<Credential> creds = new ArrayList<>();
+        Block block = new Block(1, signedGenesis.getHash(), creds, "VALIDATOR_001");
+        String blockSignature = CryptoUtils.signData(block.getHash(), validatorKeyPair.getPrivate());
+        Block signedBlock = new Block(block, blockSignature);
+        // No attestations added
+
+        chain.addBlock(signedBlock);
+
+        Assert.assertTrue("Block with no attestations should still be valid (backward compat)",
+                chain.validateChain(validatorKeys));
+    }
+
     // ========== Credential ID Tests ==========
 
     @Test

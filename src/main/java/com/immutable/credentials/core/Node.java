@@ -10,6 +10,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.immutable.credentials.auth.CredentialValidator;
+import com.immutable.credentials.consensus.BlockScoring;
 import com.immutable.credentials.consensus.ProofOfAuthority;
 import com.immutable.credentials.consensus.Validator;
 import com.immutable.credentials.model.Block;
@@ -452,10 +453,13 @@ public class Node {
         }
 
         // Round-robin check: only the designated proposer seals
+        int activeCount = getActiveValidators().size();
         int nextIndex = blockchain.size();
         Validator currentProposer = proofOfAuthority.getCurrentProposer(nextIndex);
         if (currentProposer == null
-                || !currentProposer.getValidatorId().equals(validator.getValidatorId())) {
+                || !currentProposer.getValidatorId().equals(validator.getValidatorId())
+                || BlockScoring.isProposerInCooldown(validator.getValidatorId(), getChain(), activeCount)) {
+            Logger.log("Cannot propose block: I am currently in cooldown.");
             return; // not our turn
         }
 
@@ -513,6 +517,12 @@ public class Node {
             return; // only validators participate in voting
         }
 
+        int activeCount = getActiveValidators().size();
+        String proposerId = block.getValidatorId();
+        if (BlockScoring.isProposerInCooldown(proposerId, getChain(), activeCount)) {
+            Logger.warn("SECURITY REJECT: Validator " + proposerId + " is in cooldown! Ignoring block.");
+            return;
+        }
         // Validate against PoA consensus rules
         Block previousBlock = blockchain.getBlock(block.getIndex() - 1);
         boolean valid = proofOfAuthority.enforceConsensusRules(block, previousBlock);
@@ -522,11 +532,21 @@ public class Node {
             proofOfAuthority.proposeBlock(block);
         }
 
-        // Record our own vote
-        proofOfAuthority.recordVote(
-                block.getIndex(), block.getHash(), validator.getPublicKey(), valid);
+        // Generate our own vote signature when approving
+        String voteSignature = null;
+        if (valid) {
+            try {
+                voteSignature = validator.signData(block.getHash());
+            } catch (Exception e) {
+                Logger.warn("Failed to sign vote for block #" + block.getIndex() + ": " + e.getMessage());
+            }
+        }
 
-        // Broadcast vote to peers
+        // Record our own vote (with signature so it becomes an attestation)
+        proofOfAuthority.recordVote(
+                block.getIndex(), block.getHash(), validator.getPublicKey(), valid, voteSignature);
+
+        // Broadcast vote to peers (P2PNetwork will include the signature)
         if (network != null) {
             network.broadcastBlockVote(block.getIndex(), block.getHash(), valid);
         }
@@ -544,13 +564,15 @@ public class Node {
      * Handle a BLOCK_VOTE message received from a peer validator.
      * Records the vote and checks if consensus has been reached.
      *
-     * @param blockIndex the index of the block being voted on
-     * @param blockHash  the hash of the proposed block
-     * @param voterId    the validator ID of the voter
-     * @param approve    true if the voter approves, false if they reject
+     * @param blockIndex    the index of the block being voted on
+     * @param blockHash     the hash of the proposed block
+     * @param voterId       the validator ID of the voter
+     * @param approve       true if the voter approves, false if they reject
+     * @param voteSignature Base64-encoded RSA signature of blockHash (may be null)
      * @throws IllegalArgumentException if blockHash or voterId is null
      */
-    public void handleBlockVote(int blockIndex, String blockHash, String voterId, boolean approve) {
+    public void handleBlockVote(int blockIndex, String blockHash, String voterId,
+            boolean approve, String voteSignature) {
         if (blockHash == null) {
             throw new IllegalArgumentException("Block hash cannot be null");
         }
@@ -570,9 +592,9 @@ public class Node {
             return;
         }
 
-        // Record the vote in the PoA engine
+        // Record the vote in the PoA engine (with attestation signature)
         boolean recorded = proofOfAuthority.recordVote(
-                blockIndex, blockHash, voter.getPublicKey(), approve);
+                blockIndex, blockHash, voter.getPublicKey(), approve, voteSignature);
         if (!recorded) {
             Logger.warn("Vote from " + voterId + " on block #" + blockIndex + " was not recorded");
             return;
@@ -627,6 +649,13 @@ public class Node {
             if (consensusBlock.getPreviousHash() == null
                     || !consensusBlock.getPreviousHash().equals(expectedPreviousHash)) {
                 return;
+            }
+
+            // Embed all approval attestations into the block before finalizing
+            java.util.Map<String, String> attestations = proofOfAuthority
+                    .getApprovalAttestations(consensusBlock.getHash());
+            for (java.util.Map.Entry<String, String> entry : attestations.entrySet()) {
+                consensusBlock.addVoterAttestation(entry.getKey(), entry.getValue());
             }
 
             Logger.log("[DEBUG] checkAndFinalizeConsensus: About to add block idx=" + consensusBlock.getIndex()
@@ -862,14 +891,114 @@ public class Node {
      * @param newChain the replacement chain
      */
     public synchronized boolean replaceChain(ArrayList<Block> newChain) {
-        if (newChain.size() <= blockchain.size()) {
+        if (!validateIncomingChain(newChain)) {
+            Logger.warn(
+                    "Chain replacement aborted: Incoming chain is cryptographically invalid or violates cooldown rules.");
+            return false;
+        }
+
+        java.util.Map<String, PublicKey> pubKeyMap = buildValidatorPubKeyMap();
+        java.util.List<Validator> activeValidators = getActiveValidators();
+
+        int currentScore = BlockScoring.computeChainScore(blockchain.getChain(), activeValidators, pubKeyMap);
+        int newScore = BlockScoring.computeChainScore(newChain, activeValidators, pubKeyMap);
+
+        int currentHeight = blockchain.size();
+        int newHeight = newChain.size();
+
+        boolean shouldReplace = false;
+
+        if (newHeight > currentHeight) {
+            shouldReplace = true;
+        } else if (newHeight == currentHeight && newScore > currentScore) {
+            shouldReplace = true;
+        }
+        if (!shouldReplace) {
+            Logger.log("Chain replacement rejected. New: H=" + newHeight + ", S=" + newScore +
+                    " | Current: H=" + currentHeight + ", S=" + currentScore);
             return false;
         }
 
         blockchain.replaceChain(newChain);
         credentialIndex.rebuildIndex(blockchain);
-        Logger.log("Chain successfully replaced. New height: " + blockchain.size());
+
+        Logger.log("SUCCESS: Chain replaced! New height: " + newHeight + ", New score: " + newScore);
         return true;
+    }
+
+    public int getChainScore() {
+        return BlockScoring.computeChainScore(blockchain.getChain(), getActiveValidators(), buildValidatorPubKeyMap());
+    }
+
+    public int getBlockScore(Block block) {
+        java.util.List<Validator> active = getActiveValidators();
+        if (active.isEmpty() || block.getIndex() == 0) return 0;
+        String expectedProposerId = active.get(block.getIndex() % active.size()).getValidatorId();
+        return BlockScoring.computeBlockScore(block, expectedProposerId, buildValidatorPubKeyMap());
+    }
+
+    /**
+     * Validate an incoming chain against consensus rules and cooldown restrictions.
+     * Checks that each block in the chain is proposed by an active validator and
+     * that no validator violates the proposer cooldown. Also enforces consensus
+     * rules
+     * for each block transition.
+     *
+     * @param incomingChain the chain to validate (must not be null or empty)
+     * @return true if the incoming chain is valid according to consensus and
+     *         cooldown rules, false otherwise
+     */
+    private boolean validateIncomingChain(ArrayList<Block> incomingChain) {
+        if (incomingChain == null || incomingChain.isEmpty())
+            return false;
+
+        List<Validator> active = getActiveValidators();
+
+        for (int i = 1; i < incomingChain.size(); i++) {
+            Block current = incomingChain.get(i);
+            Block prev = incomingChain.get(i - 1);
+
+            if (BlockScoring.isProposerInCooldown(current.getValidatorId(), incomingChain.subList(0, i),
+                    active.size())) {
+                return false;
+            }
+
+            if (!proofOfAuthority.enforceConsensusRules(current, prev)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Build a map of validator IDs to their public keys for all authorized
+     * validators.
+     * Used for signature verification and chain validation.
+     *
+     * @return a map from validator ID to public key for all authorized validators
+     */
+    private java.util.Map<String, PublicKey> buildValidatorPubKeyMap() {
+        java.util.Map<String, PublicKey> map = new java.util.HashMap<>();
+        for (Validator v : proofOfAuthority.getAuthorizedValidators()) {
+            map.put(v.getValidatorId(), v.getPublicKey());
+        }
+        return map;
+    }
+
+    /**
+     * Get the list of currently active validators from the authorized validator
+     * set.
+     * Only validators whose isActive() returns true are included.
+     *
+     * @return a list of active validators
+     */
+    private java.util.List<Validator> getActiveValidators() {
+        java.util.List<Validator> active = new java.util.ArrayList<>();
+        for (Validator v : proofOfAuthority.getAuthorizedValidators()) {
+            if (v.isActive())
+                active.add(v);
+        }
+        return active;
     }
 
     /**

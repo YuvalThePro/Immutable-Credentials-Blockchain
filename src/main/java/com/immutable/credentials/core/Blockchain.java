@@ -207,6 +207,17 @@ public class Blockchain {
             if (!CryptoUtils.verifySignature(current.getHash(), signature, pk)) {
                 return false;
             }
+
+            // Verify all voter attestations (if any) — empty map is valid (backward compat)
+            for (java.util.Map.Entry<String, String> att : current.getVoterAttestations().entrySet()) {
+                PublicKey voterPk = map.get(att.getKey());
+                if (voterPk == null) {
+                    return false; // attestation from unknown validator
+                }
+                if (!CryptoUtils.verifySignature(current.getHash(), att.getValue(), voterPk)) {
+                    return false; // forged attestation
+                }
+            }
         }
 
         return true;

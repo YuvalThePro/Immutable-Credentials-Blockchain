@@ -170,7 +170,6 @@ public class AuthService {
                 + "    SELECT 1 FROM node_users n "
                 + "    WHERE n.validator_id = v.validator_id "
                 + "    AND n.node_type = 'VALIDATOR' "
-                + "    AND n.is_active = TRUE"
                 + ") "
                 + "ORDER BY v.validator_id";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
@@ -203,21 +202,31 @@ public class AuthService {
 
     public List<Institution> getAllInstitutions() throws SQLException {
         List<Institution> list = new ArrayList<>();
-        String sql = "SELECT id, institution, public_key FROM institutions WHERE public_key IS NOT NULL";
+        String sql = "SELECT id, institution, public_key FROM institutions";
 
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
+                int id = rs.getInt("id");
                 String name = rs.getString("institution");
                 String pubKey = rs.getString("public_key");
 
-                if (pubKey != null && pubKey.length() > 20) {
-                    String shortKey = pubKey.substring(0, 10) + "..." + pubKey.substring(pubKey.length() - 10);
-                    Logger.log("[DB-CHECK] Institution: " + name + " | Key in DB: [" + shortKey + "]");
+                if (pubKey == null || pubKey.trim().isEmpty()) {
+                    Logger.log("Warning: Skipping institution " + name
+                            + " (no public key in database)");
+                    continue;
                 }
-
-                list.add(new Institution(rs.getInt("id"), name, pubKey));
+                try {
+                    if (pubKey.length() > 20) {
+                        String shortKey = pubKey.substring(0, 10) + "..." + pubKey.substring(pubKey.length() - 10);
+                        Logger.log("[DB-CHECK] Institution: " + name + " | Key in DB: [" + shortKey + "]");
+                    }
+                    list.add(new Institution(id, name, pubKey));
+                } catch (Exception e) {
+                    Logger.log("Warning: Failed to decode public key for institution "
+                            + name + ": " + e.getMessage());
+                }
             }
         }
         return list;

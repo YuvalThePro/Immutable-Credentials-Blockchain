@@ -52,6 +52,7 @@ public class BlockchainViewerPanel extends VBox {
     private Label totalBlocksLabel;
     private Label lastBlockTimeLabel;
     private Label chainValidLabel;
+    private Label chainScoreLabel;
 
     // ===== Block Table =====
     private TableView<Block> blockTable;
@@ -109,11 +110,13 @@ public class BlockchainViewerPanel extends VBox {
         totalBlocksLabel = new Label("Blocks: 0");
         lastBlockTimeLabel = new Label("Last: –");
         chainValidLabel = new Label("Chain: –");
+        chainScoreLabel = new Label("Score: 0");
 
         return new ToolBar(refreshButton,
                 new Label("  "), totalBlocksLabel,
                 new Label(" | "), lastBlockTimeLabel,
-                new Label(" | "), chainValidLabel);
+                new Label(" | "), chainValidLabel,
+                new Label(" | "), chainScoreLabel);
     }
 
     /**
@@ -257,6 +260,7 @@ public class BlockchainViewerPanel extends VBox {
         addDetailRow(row++, "Previous Hash:", block.getPreviousHash());
         addDetailRow(row++, "Timestamp:", formatTimestamp(block.getTimestamp()));
         addDetailRow(row++, "Validator:", block.getValidatorId());
+        addDetailRow(row++, "Score:", String.valueOf(blockchainService.getBlockScore(block)));
         List<Credential> creds = block.getCredentials();
         addDetailRow(row, "Credentials:", String.valueOf(creds != null ? creds.size() : 0));
 
@@ -293,6 +297,8 @@ public class BlockchainViewerPanel extends VBox {
         boolean valid = blockchainService.isChainValid();
         chainValidLabel.setText("Chain: " + (valid ? "Valid" : "INVALID"));
         chainValidLabel.setTextFill(valid ? Color.GREEN : Color.RED);
+
+        chainScoreLabel.setText("Score: " + blockchainService.getChainScore());
     }
 
     /**

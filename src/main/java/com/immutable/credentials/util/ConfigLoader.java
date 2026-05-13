@@ -152,39 +152,65 @@ public class ConfigLoader {
         return full;
     }
 
-    public static PrivateKey loadLocalUniversityKey(String universityId, String institution, AuthService authService)
+    public static PrivateKey loadLocalUniversityKey(String universityId, String institution,
+            List<Institution> institutions, AuthService authService)
             throws IOException, SQLException {
+
+        Institution existing = null;
+        for (Institution inst : institutions) {
+            if (inst.getId().equals(universityId)) {
+                existing = inst;
+                break;
+            }
+        }
+
+        if (existing == null) {
+            Logger.log("University " + universityId
+                    + " not yet active (pending key) - will generate key pair.");
+        }
 
         String keyFile = UNIVERSITY_KEYS_DIR + "/" + universityId + ".key";
         Path keyPath = Paths.get(keyFile);
 
-        if (Files.exists(keyPath)) {
-            byte[] keyBytes = Files.readAllBytes(keyPath);
-            String keyBase64 = new String(keyBytes, "UTF-8").trim();
-            Logger.log("Loaded private key for university " + universityId);
-            return CryptoUtils.privateKeyFromBase64(keyBase64);
-        } else {
-            Logger.log("Generating new key pair for university: " + universityId);
-            Files.createDirectories(keyPath.getParent());
+        // Stale key file with no matching DB public key - delete and regenerate
+        // so disk and database stay in sync (mirrors validator logic).
+        if (existing == null && Files.exists(keyPath)) {
+            Logger.log("Stale key file found for university " + universityId
+                    + " with no matching DB public key - regenerating...");
+            Files.delete(keyPath);
+        }
 
-            KeyPair keyPair = CryptoUtils.generateKeyPair();
+        try {
+            int numericId = Integer.parseInt(universityId);
 
-            String privKeyBase64 = CryptoUtils.keyToString(keyPair.getPrivate());
-            String pubKeyBase64 = CryptoUtils.keyToString(keyPair.getPublic());
-
-            try {
-                int numericId = Integer.parseInt(universityId);
-
-                authService.upsertUniversityPublicKey(numericId, institution, pubKeyBase64);
-
-                Files.write(keyPath, privKeyBase64.getBytes("UTF-8"));
-
-                Logger.log("New university identity locked in DB and saved to: " + keyFile);
+            if (Files.exists(keyPath)) {
+                String keyBase64 = new String(Files.readAllBytes(keyPath), "UTF-8").trim();
+                PrivateKey privateKey = CryptoUtils.privateKeyFromBase64(keyBase64);
+                // Use the public key already stored in the DB, same as loadLocalValidator.
+                // Always re-upload so DB stays in sync with the key on disk.
+                authService.upsertUniversityPublicKey(numericId, institution,
+                        CryptoUtils.keyToString(existing.getPublicKey()));
+                Logger.log("Loaded private key for university " + universityId + " from " + keyFile);
+                return privateKey;
+            } else {
+                Logger.log("No private key found for " + universityId
+                        + " - generating new RSA key pair...");
+                Files.createDirectories(keyPath.getParent());
+                KeyPair keyPair = CryptoUtils.generateAndSaveKeyPair(keyFile);
+                authService.upsertUniversityPublicKey(numericId, institution,
+                        CryptoUtils.keyToString(keyPair.getPublic()));
+                Logger.log("New key pair generated and public key uploaded to database for " + universityId);
                 return keyPair.getPrivate();
-
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("University ID must be numeric: " + universityId);
             }
+
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("University ID must be numeric: " + universityId);
+        } catch (SQLException e) {
+            throw new IOException(
+                    "Private key file is missing for university " + universityId
+                            + " and a public key is already registered in the database. "
+                            + "Please restore the private key file to: " + keyFile,
+                    e);
         }
     }
 

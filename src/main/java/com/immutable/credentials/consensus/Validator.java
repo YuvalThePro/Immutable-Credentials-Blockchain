@@ -91,8 +91,29 @@ public class Validator {
     }
 
     /**
+     * Sign an arbitrary data string (e.g. a block hash for vote attestation).
+     *
+     * @param data the string to sign
+     * @return Base64-encoded RSA signature
+     * @throws SignatureException if the validator has no private key or signing fails
+     */
+    public String signData(String data) throws SignatureException {
+        if (this.privateKey == null) {
+            throw new IllegalStateException("Cannot sign data: Validator has no private key");
+        }
+        if (data == null) {
+            throw new IllegalArgumentException("Cannot sign null data");
+        }
+        try {
+            return CryptoUtils.signData(data, this.privateKey);
+        } catch (Exception e) {
+            throw new SignatureException("Failed to sign data: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Verify a block's signature using the validator's public key.
-     * 
+     *
      * @param block the block to verify
      * @return true if signature is valid, false otherwise
      */

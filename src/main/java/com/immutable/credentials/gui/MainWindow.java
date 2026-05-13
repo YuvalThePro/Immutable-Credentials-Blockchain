@@ -92,6 +92,7 @@ public class MainWindow extends Application {
     // ===== Auth / Session =====
     private AuthService authService;
     private NodeConfig nodeConfig;
+    private List<Institution> institutions;
 
     // ===== UI Shell =====
     private Stage primaryStage;
@@ -228,7 +229,7 @@ public class MainWindow extends Application {
 
             // Load the shared validator list from the cloud database.
             List<Validator> validators = ConfigLoader.loadValidatorList(authService);
-            List<Institution> institutions = ConfigLoader.loadInstitutionList(authService);
+            institutions = ConfigLoader.loadInstitutionList(authService);
             CredentialValidator credentialValidator = new CredentialValidator();
             credentialValidator.addInstitutions(institutions);
             Node node;

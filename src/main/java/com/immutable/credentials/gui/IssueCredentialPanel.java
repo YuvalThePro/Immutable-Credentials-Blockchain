@@ -1,7 +1,9 @@
 package com.immutable.credentials.gui;
 
+import java.util.List;
 import java.util.UUID;
 
+import com.immutable.credentials.model.Institution;
 import com.immutable.credentials.service.AuthService;
 import com.immutable.credentials.service.CredentialService;
 import com.immutable.credentials.service.NodeService;
@@ -46,6 +48,7 @@ public class IssueCredentialPanel extends VBox {
     private final CredentialService credentialService;
     private final NodeService nodeService;
     private final AuthService authService;
+    private final List<Institution> institutions;
     // ===== Form Fields =====
     private TextField studentNameField;
     private TextField studentIdField;
@@ -69,10 +72,12 @@ public class IssueCredentialPanel extends VBox {
      *                          must not be {@code null}
      * @throws IllegalArgumentException if either service is {@code null}
      */
-    public IssueCredentialPanel(CredentialService credentialService, NodeService nodeService, AuthService authService) {
+    public IssueCredentialPanel(CredentialService credentialService, NodeService nodeService,
+            AuthService authService, List<Institution> institutions) {
         this.credentialService = credentialService;
         this.nodeService = nodeService;
         this.authService = authService;
+        this.institutions = institutions;
         getChildren().add(buildForm());
     }
 
@@ -174,6 +179,7 @@ public class IssueCredentialPanel extends VBox {
             java.security.PrivateKey uniPrivateKey = ConfigLoader.loadLocalUniversityKey(
                     universityId,
                     institution,
+                    institutions,
                     authService);
 
             credentialService.issueCredential(

@@ -68,7 +68,6 @@ public class Credential {
             throw new IllegalArgumentException("Cannot copy from null Credential");
         }
         this.studentName = other.studentName;
-        // העתקה עמוקה של התאריך - קריטי לאבטחה!
         this.dateAwarded = other.dateAwarded != null ? new Date(other.dateAwarded.getTime()) : null;
         this.degree = other.degree;
         this.institution = other.institution;

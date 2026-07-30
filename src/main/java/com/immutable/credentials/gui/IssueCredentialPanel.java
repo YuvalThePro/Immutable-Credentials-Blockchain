@@ -176,10 +176,12 @@ public class IssueCredentialPanel extends VBox {
         String institution = institutionField.getText().trim();
 
         try {
+            List<Institution> currentInstitutions = authService.getAllInstitutions();
+
             java.security.PrivateKey uniPrivateKey = ConfigLoader.loadLocalUniversityKey(
                     universityId,
                     institution,
-                    institutions,
+                    currentInstitutions,
                     authService);
 
             credentialService.issueCredential(

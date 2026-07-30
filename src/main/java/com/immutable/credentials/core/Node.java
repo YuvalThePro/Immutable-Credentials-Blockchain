@@ -392,12 +392,13 @@ public class Node {
             return;
         if (credentialIndex.getCredentialById(credential.getCredentialId()) != null)
             return;
+
         acceptIfCurrentProposer(credential);
     }
 
     /**
-     * Accept a credential into the pending pool if this node is the
-     * current round-robin proposer. No-op otherwise.
+     * Accept a credential into the pending pool ONLY if this node is the
+     * exact round-robin proposer for the next block. No-op otherwise.
      *
      * @param credential the credential to potentially accept
      */
@@ -452,15 +453,25 @@ public class Node {
             return; // silently skip — scheduler may fire outside the active lifecycle
         }
 
-        // Round-robin check: only the designated proposer seals
-        int activeCount = getActiveValidators().size();
         int nextIndex = blockchain.size();
         Validator currentProposer = proofOfAuthority.getCurrentProposer(nextIndex);
-        if (currentProposer == null
-                || !currentProposer.getValidatorId().equals(validator.getValidatorId())
-                || BlockScoring.isProposerInCooldown(validator.getValidatorId(), getChain(), activeCount)) {
+
+        if (currentProposer == null) {
+            return;
+        }
+
+        // Round-robin check: ONLY the designated proposer seals
+        if (!currentProposer.getValidatorId().equals(validator.getValidatorId())) {
+            // It is not our turn for this block. Silently wait for the current proposer.
+            return;
+        }
+
+        // If we reach here, it IS our turn. We can legitimately check if we're in
+        // cooldown.
+        int activeCount = getActiveValidators().size();
+        if (BlockScoring.isProposerInCooldown(validator.getValidatorId(), getChain(), activeCount)) {
             Logger.log("Cannot propose block: I am currently in cooldown.");
-            return; // not our turn
+            return;
         }
 
         // Drain up to MAX_CREDENTIALS_PER_BLOCK from the pending pool
@@ -932,7 +943,8 @@ public class Node {
 
     public int getBlockScore(Block block) {
         java.util.List<Validator> active = getActiveValidators();
-        if (active.isEmpty() || block.getIndex() == 0) return 0;
+        if (active.isEmpty() || block.getIndex() == 0)
+            return 0;
         String expectedProposerId = active.get(block.getIndex() % active.size()).getValidatorId();
         return BlockScoring.computeBlockScore(block, expectedProposerId, buildValidatorPubKeyMap());
     }

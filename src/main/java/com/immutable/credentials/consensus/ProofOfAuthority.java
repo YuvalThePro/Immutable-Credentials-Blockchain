@@ -354,14 +354,6 @@ public class ProofOfAuthority {
         if (fresh == null || fresh.isEmpty())
             throw new IllegalArgumentException("List of validators cannot be null or empty.");
 
-        for (Validator incoming : fresh) {
-            for (Validator existing : authorizedValidators) {
-                if (existing.getValidatorId().equals(incoming.getValidatorId()) && existing.isActive()) {
-                    incoming.activate();
-                    break;
-                }
-            }
-        }
         authorizedValidators.clear();
         authorizedValidators.addAll(fresh);
         authorizedValidators.sort(java.util.Comparator.comparing(Validator::getValidatorId));

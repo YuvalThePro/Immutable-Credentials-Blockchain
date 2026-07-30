@@ -120,10 +120,23 @@ public class ConfigLoader {
             String keyBase64 = new String(Files.readAllBytes(keyPath), "UTF-8").trim();
             privateKey = CryptoUtils.privateKeyFromBase64(keyBase64);
             publicKey = existing.getPublicKey();
+
+            if (publicKey != null) {
+                String testData = "key-match-test";
+                String testSig = CryptoUtils.signData(testData, privateKey);
+                if (!CryptoUtils.verifySignature(testData, testSig, publicKey)) {
+                    Logger.warn("SECURITY ALERT: Mismatched keys for validator " + validatorId);
+                    throw new IOException("Mismatched Keys! The private key on disk (" + keyFile
+                            + ") DOES NOT MATCH the public key registered in the database for " + validatorId
+                            + ". Please delete the local key file to allow regeneration, or manually clear the public_key field in the database.");
+                }
+            }
+
             // Always re-upload so DB stays in sync with the key on disk
             authService.upsertValidatorKey(validatorId, institution,
                     CryptoUtils.keyToString(publicKey));
-            Logger.log("Loaded private key for validator " + validatorId + " from " + keyFile);
+            Logger.log("Loaded private key for validator " + validatorId + " from " + keyFile
+                    + " (DB and disk match perfectly)");
         } else {
             Logger.log("No private key found for " + validatorId + " - generating new RSA key pair...");
             Files.createDirectories(keyPath.getParent());
@@ -136,6 +149,7 @@ public class ConfigLoader {
         }
 
         Validator full = new Validator(validatorId, validatorId, publicKey, privateKey, institution);
+        full.activate();
 
         boolean found = false;
         for (int i = 0; i < validators.size(); i++) {
@@ -158,7 +172,7 @@ public class ConfigLoader {
 
         Institution existing = null;
         for (Institution inst : institutions) {
-            if (inst.getId().equals(universityId)) {
+            if (inst.getName().equals(institution)) {
                 existing = inst;
                 break;
             }
@@ -181,35 +195,42 @@ public class ConfigLoader {
         }
 
         try {
-            int numericId = Integer.parseInt(universityId);
-
             if (Files.exists(keyPath)) {
                 String keyBase64 = new String(Files.readAllBytes(keyPath), "UTF-8").trim();
                 PrivateKey privateKey = CryptoUtils.privateKeyFromBase64(keyBase64);
-                // Use the public key already stored in the DB, same as loadLocalValidator.
-                // Always re-upload so DB stays in sync with the key on disk.
-                authService.upsertUniversityPublicKey(numericId, institution,
-                        CryptoUtils.keyToString(existing.getPublicKey()));
-                Logger.log("Loaded private key for university " + universityId + " from " + keyFile);
+
+                if (existing != null && existing.getPublicKey() != null) {
+                    String testData = "key-match-test";
+                    String testSig = CryptoUtils.signData(testData, privateKey);
+                    if (!CryptoUtils.verifySignature(testData, testSig, existing.getPublicKey())) {
+                        Logger.warn("SECURITY ALERT: Mismatched keys for " + institution);
+                        throw new IOException("Mismatched Keys! The private key on disk (" + keyFile
+                                + ") DOES NOT MATCH the public key registered in the database for " + institution
+                                + ". If you lost your original private key, you must manually clear the public_key field in the database first to allow a new pair to be generated.");
+                    }
+                }
+
+                Logger.log("Loaded private key for university " + universityId + " from " + keyFile
+                        + " (DB and disk match perfectly)");
                 return privateKey;
             } else {
                 Logger.log("No private key found for " + universityId
                         + " - generating new RSA key pair...");
                 Files.createDirectories(keyPath.getParent());
                 KeyPair keyPair = CryptoUtils.generateAndSaveKeyPair(keyFile);
-                authService.upsertUniversityPublicKey(numericId, institution,
+
+                authService.upsertUniversityPublicKey(institution,
                         CryptoUtils.keyToString(keyPair.getPublic()));
+
                 Logger.log("New key pair generated and public key uploaded to database for " + universityId);
                 return keyPair.getPrivate();
             }
 
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("University ID must be numeric: " + universityId);
         } catch (SQLException e) {
             throw new IOException(
-                    "Private key file is missing for university " + universityId
-                            + " and a public key is already registered in the database. "
-                            + "Please restore the private key file to: " + keyFile,
+                    "Database rejected the public key for " + institution
+                            + ". A key might already be registered by another instance. "
+                            + "Please restore the correct private key file to: " + keyFile,
                     e);
         }
     }

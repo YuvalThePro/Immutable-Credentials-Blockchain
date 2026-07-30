@@ -163,14 +163,15 @@ public class AuthService {
      */
     public List<Validator> loadValidators() throws SQLException {
         List<Validator> result = new ArrayList<>();
-        String sql = "SELECT v.validator_id, v.institution, v.public_key, TRUE AS online "
-                + "FROM validators v "
-                + "WHERE v.is_active = TRUE "
-                + "AND EXISTS ("
+        String sql = "SELECT v.validator_id, v.institution, v.public_key, "
+                + "(EXISTS ("
                 + "    SELECT 1 FROM node_users n "
                 + "    WHERE n.validator_id = v.validator_id "
                 + "    AND n.node_type = 'VALIDATOR' "
-                + ") "
+                + "    AND n.is_active = TRUE"
+                + ")) AS online "
+                + "FROM validators v "
+                + "WHERE v.is_active = TRUE "
                 + "ORDER BY v.validator_id";
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
                 PreparedStatement ps = conn.prepareStatement(sql);
@@ -359,25 +360,49 @@ public class AuthService {
         }
     }
 
-    public void upsertUniversityPublicKey(int universityId, String institution, String publicKeyBase64)
+    public void upsertUniversityPublicKey(String institution, String publicKeyBase64)
             throws SQLException {
-        String sql = "UPDATE institutions SET public_key = ?, institution = ? " +
-                "WHERE id = ? AND (public_key IS NULL OR public_key = '')";
+
+        // Try updating the existing institution if its key is empty
+        String updateSql = "UPDATE institutions SET public_key = ? " +
+                "WHERE institution = ? AND (public_key IS NULL OR public_key = '')";
 
         try (Connection conn = DriverManager.getConnection(jdbcUrl);
-                PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setString(1, publicKeyBase64);
-            pstmt.setString(2, institution);
-            pstmt.setInt(3, universityId);
+                PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
 
-            int rowsAffected = pstmt.executeUpdate();
+            updateStmt.setString(1, publicKeyBase64);
+            updateStmt.setString(2, institution);
 
+            int rowsAffected = updateStmt.executeUpdate();
+
+            // If 0 rows were updated, it either doesn't exist or already has a key
             if (rowsAffected == 0) {
-                Logger.warn("Security Alert: Key overwrite attempt or invalid ID: " + universityId);
-                throw new SQLException("Cannot overwrite existing public key or ID not found.");
+                String checkSql = "SELECT public_key FROM institutions WHERE institution = ?";
+                try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                    checkStmt.setString(1, institution);
+                    try (ResultSet rs = checkStmt.executeQuery()) {
+                        if (rs.next()) {
+                            // Row exists, check if it already has a key to prevent overwrite
+                            String existingKey = rs.getString("public_key");
+                            if (existingKey != null && !existingKey.trim().isEmpty()) {
+                                Logger.warn("Security Alert: Key overwrite attempt for institution: " + institution);
+                                throw new SQLException(
+                                        "Cannot overwrite existing public key for institution: " + institution);
+                            }
+                        } else {
+                            // Row does not exist at all, INSERT it
+                            String insertSql = "INSERT INTO institutions (institution, public_key) VALUES (?, ?)";
+                            try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
+                                insertStmt.setString(1, institution);
+                                insertStmt.setString(2, publicKeyBase64);
+                                insertStmt.executeUpdate();
+                            }
+                        }
+                    }
+                }
             }
 
-            Logger.log("Public key locked for institution ID: " + universityId);
+            Logger.log("Public key locked for institution: " + institution);
         }
     }
 
